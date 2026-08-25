@@ -1,0 +1,60 @@
+# Local development
+
+## Prerequisites
+
+- Docker Engine with Docker Compose v2
+- Enough CPU, memory, and disk for Demucs, Whisper, PostgreSQL, MinIO, and a local Ollama model
+- An AcoustID API key for fingerprint lookups
+
+The repository does not define a host-native Python or Node startup workflow. Compose is the supported development entry point.
+
+## Configuration
+
+Create a private environment file and provide the values consumed by `docker-compose.yml`. At minimum, configure PostgreSQL credentials, MinIO credentials, `FRONTEND_ORIGIN`, the AcoustID key, and classifier settings.
+
+Use non-production credentials locally. The compose defaults are suitable only for a disposable development machine.
+
+## Start the stack
+
+```bash
+docker compose --env-file .env up --build
+```
+
+The development compose file exposes the frontend at `http://localhost:3000`, PostgreSQL on `127.0.0.1:5432`, MinIO on `127.0.0.1:9000`, its console at `http://127.0.0.1:9001`, the classifier on `127.0.0.1:8001`, and Ollama on `127.0.0.1:11434`. Other services are reachable only inside the Compose network.
+
+On first use, make sure the configured Ollama model is available:
+
+```bash
+docker compose exec ollama ollama pull qwen2.5:3b-instruct
+```
+
+## Useful commands
+
+```bash
+docker compose ps
+docker compose logs -f orchestrator
+docker compose logs -f classifier
+docker compose exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+docker compose down
+```
+
+`docker compose down` preserves named volumes unless `--volumes` is supplied. Use the latter only when intentionally deleting local database and object-store data.
+
+## Checks before a pull request
+
+```bash
+docker compose config
+docker compose build
+docker compose run --rm frontend npm run lint
+```
+
+There is no repository-wide automated test command today. Changes to Python services should at least be checked by rebuilding the affected image and calling its `/health` endpoint. Changes to the pipeline should be tested with a small audio fixture and a text-only request.
+
+## Change guide
+
+- Update a service and its `requirements.txt` together.
+- Keep service payloads and object-key conventions documented when changing an endpoint.
+- If a database column changes, update `database/init.sql`, the orchestrator's insert/upsert code, and [data-model.md](data-model.md).
+- If a stage or flag changes, update frontend controls, worker claim logic, completion logic, and [architecture.md](architecture.md).
+- Do not add credentials, audio samples, model weights, or large datasets to the repository.
+

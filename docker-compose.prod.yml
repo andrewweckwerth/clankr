@@ -17,7 +17,7 @@ x-logging: &default-logging
 services:
   traefik:
     logging: *default-logging
-    image: traefik:v2.10
+    image: traefik:v3.7.1
     restart: unless-stopped
     command:
       - --providers.docker=true
@@ -72,7 +72,7 @@ services:
       - traefik.http.routers.frontend.middlewares=hsts
   db:
     logging: *default-logging
-    image: postgres:15
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
