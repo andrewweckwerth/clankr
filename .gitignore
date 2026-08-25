@@ -77,3 +77,8 @@ terraform/
 oci_key
 oci_key.pub
 temp/
+
+# Deployment credentials and runtime state
+letsencrypt/acme.json
+fluentd/*.pem
+fluentd/oci_config

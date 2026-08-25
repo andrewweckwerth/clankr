@@ -4,7 +4,6 @@ networks:
 services:
   traefik:
     image: traefik:v2.10
-    container_name: traefik
     restart: unless-stopped
     command:
       - --providers.docker=true
@@ -15,7 +14,7 @@ services:
       - --entrypoints.websecure.address=:443
       - --certificatesresolvers.le.acme.httpchallenge=true
       - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
-      - --certificatesresolvers.le.acme.email=andrewchimney@gmail.com
+      - --certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL}
       - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
       # - --accesslog=true
       # - --accesslog.format=json
@@ -30,7 +29,6 @@ services:
     build:
       context: ./frontend
       target: runner 
-    container_name: clanker_frontend
     depends_on:
       orchestrator_api:
         condition: service_healthy
@@ -45,12 +43,12 @@ services:
     command: ["npm","run","start"]
     volumes:
       - ./shared_data:/shared_data:ro
-    env_file: [./.env]
+    env_file: ["${ENV_FILE:-.env}"]
     networks: [web, default]             # public via traefik + internal to talk to API
     labels:
       - traefik.enable=true
-      - traefik.docker.network=clanker_sniffer_web
-      - traefik.http.routers.frontend.rule=Host(`clankr.app`,`www.clankr.app`)
+      - traefik.docker.network=clankr-prod_web
+      - traefik.http.routers.frontend.rule=Host(`${APP_HOST}`)
       - traefik.http.routers.frontend.entrypoints=websecure
       - traefik.http.routers.frontend.tls.certresolver=le
       - traefik.http.services.frontend.loadbalancer.server.port=3000
@@ -60,7 +58,6 @@ services:
       - traefik.http.routers.frontend.middlewares=hsts
   db:
     image: postgres:15
-    container_name: clanker_db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -81,9 +78,7 @@ services:
       - "-c"
       - "client_min_messages=notice"
       - "-c"
-      - "log_line_prefix=%m %s:     clanker_db %u@%d app=%a [%p] "
-    ports:
-      - "5432:5432"
+      - "log_line_prefix=%m %s:     clankr_db %u@%d app=%a [%p] "
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB -h localhost"]
       interval: 100s
@@ -93,7 +88,6 @@ services:
 
   demucs_api:
     build: ./demucs-api
-    container_name: clanker_demucs
     restart: unless-stopped
     volumes:
       - ./demucs-api:/app
@@ -111,14 +105,13 @@ services:
 
   whisper_api:
     build: ./whisper-api
-    container_name: clanker_whisper
     restart: unless-stopped
     volumes:
       - ./whisper-api:/app
       - ./shared_data:/shared_data
     working_dir: /app
     env_file:
-      - ./.env
+      - ${ENV_FILE:-.env}
     expose:
       - "8000"
     healthcheck:
@@ -138,7 +131,6 @@ services:
   #   restart: unless-stopped
   classifier_api:
     build: ./classifier-api
-    container_name: clanker_classifier
     restart: unless-stopped
     volumes:
       - ./classifier-api:/app
@@ -156,17 +148,18 @@ services:
       AI_BASE_URL: "http://ollama:11434"
       AI_MODEL: "qwen2.5:3b-instruct"   # or whatever LocalAI exposes
       AI_API_KEY: "secret"
+    env_file:
+      - ${ENV_FILE:-.env}
 
   acousti_api:
     build: ./acousti-api
-    container_name: clanker_acousti
     restart: unless-stopped
     volumes:
       - ./acousti-api:/app
       - ./shared_data:/shared_data
     working_dir: /app
     env_file:
-      - ./.env
+      - ${ENV_FILE:-.env}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 100s
@@ -175,7 +168,6 @@ services:
       start_period: 20s
   orchestrator_api:
     build: ./orchestrator-api
-    container_name: clanker_orchestrator
     depends_on:
       db:
         condition: service_healthy
@@ -192,7 +184,7 @@ services:
       - ./shared_data:/shared_data
     working_dir: /app
     env_file:
-      - ./.env
+      - ${ENV_FILE:-.env}
     expose:
       - "8000"
     healthcheck:
@@ -218,9 +210,6 @@ services:
 
   ollama:
     image: ollama/ollama:latest
-    platform: linux/arm64/v8   # good for M-series Macs and Oracle Ampere
-    ports:
-      - "11434:11434"
     environment:
       - OLLAMA_HOST=0.0.0.0
     volumes:

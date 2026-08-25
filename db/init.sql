@@ -20,10 +20,7 @@ CREATE INDEX IF NOT EXISTS idx_songs_hash ON songs(fingerprint_hash);
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-drop table jobs;
-
-
-CREATE TABLE jobs (
+CREATE TABLE IF NOT EXISTS jobs (
   id               BIGSERIAL PRIMARY KEY,
   song_id          INTEGER REFERENCES songs(id) ON DELETE SET NULL,
   current_stage    TEXT,

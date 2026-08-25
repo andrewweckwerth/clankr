@@ -4,7 +4,7 @@
 
 A self-hosted, microservice-based web application that lets users upload `.mp3` files, runs vocal separation (Demucs), transcribes vocals to lyrics (Whisper), and classifies lyrics as AI- or human-generated.
 
-clanker_sniffer/
+clankr/
 ├── app/               # frontend + API gateway (Next.js)
 ├── demucs-api/        # vocal separation microservice
 ├── whisper-api/       # transcription microservice
@@ -77,7 +77,7 @@ Built in Next.js, the frontend allows users to:
 
 
 ------------------------------------------------------
-| Clanker Sniffer 🎧                                  |
+| Clankr 🎧                                            |
 ------------------------------------------------------
 | [🔊 Upload Audio] [📝 Paste Lyrics]                 |
 |                                                    |
@@ -125,4 +125,3 @@ Built in Next.js, the frontend allows users to:
 ---
 
 Let me know if you want to expand this into a README or generate actual code/stubs.
-

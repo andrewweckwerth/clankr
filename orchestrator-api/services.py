@@ -17,10 +17,10 @@ STEMS_PATH = os.path.join(SHARED_PATH, "stems")
 RAW_PATH = os.path.join(SHARED_PATH, "raw")
 PREPROCESSED_PATH = os.path.join(SHARED_PATH, "preprocessed")
 
-ACOUSTI_URL   = os.getenv("ACOUSTI_URL",   "http://clanker_acousti:8000")
-DEMUCS_URL    = os.getenv("DEMUCS_URL",    "http://clanker_demucs:8000")
-WHISPER_URL   = os.getenv("WHISPER_URL",   "http://clanker_whisper:8000")
-CLASSIFY_URL  = os.getenv("CLASSIFY_URL",  "http://clanker_classifier:8000")
+ACOUSTI_URL   = os.getenv("ACOUSTI_URL",   "http://acousti_api:8000")
+DEMUCS_URL    = os.getenv("DEMUCS_URL",    "http://demucs_api:8000")
+WHISPER_URL   = os.getenv("WHISPER_URL",   "http://whisper_api:8000")
+CLASSIFY_URL  = os.getenv("CLASSIFY_URL",  "http://classifier_api:8000")
 
 # Timeouts (connect, read)
 T_IDENTIFY   = (5.0, 120.0)
@@ -121,4 +121,3 @@ async def preprocess(file_name: str) -> str:
         pass
 
     return converted_name
-
