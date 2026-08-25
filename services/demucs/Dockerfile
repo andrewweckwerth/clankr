@@ -1,4 +1,4 @@
-# demucs-api/Dockerfile
+# services/demucs/Dockerfile
 FROM python:3.10-slim-bookworm
 
 WORKDIR /app
@@ -16,4 +16,3 @@ COPY . .
 
 EXPOSE 8000
 CMD ["uvicorn","demucs_runner:app","--host","0.0.0.0","--port","8000"]
-

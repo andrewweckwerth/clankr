@@ -9,10 +9,10 @@ logging.basicConfig(
 logger = logging.getLogger("orchestrator")
 
 # ------- config -------
-ACOUSTI_URL   = os.getenv("ACOUSTI_URL",   "http://acousti_api:8000")
-DEMUCS_URL    = os.getenv("DEMUCS_URL",    "http://demucs_api:8000")
-WHISPER_URL   = os.getenv("WHISPER_URL",   "http://whisper_api:8000")
-CLASSIFY_URL  = os.getenv("CLASSIFY_URL",  "http://classifier_api:8000")
+ACOUSTI_URL   = os.getenv("ACOUSTI_URL",   "http://acousti:8000")
+DEMUCS_URL    = os.getenv("DEMUCS_URL",    "http://demucs:8000")
+WHISPER_URL   = os.getenv("WHISPER_URL",   "http://whisper:8000")
+CLASSIFY_URL  = os.getenv("CLASSIFY_URL",  "http://classifier:8000")
 
 # Timeouts (connect, read)
 T_IDENTIFY   = (5.0, 120.0)
