@@ -5,31 +5,37 @@
 A self-hosted, microservice-based web application that lets users upload `.mp3` files, runs vocal separation (Demucs), transcribes vocals to lyrics (Whisper), and classifies lyrics as AI- or human-generated.
 
 clankr/
-├── app/               # frontend + API gateway (Next.js)
-├── demucs-api/        # vocal separation microservice
-├── whisper-api/       # transcription microservice
-├── classifier-api/    # AI/human prediction microservice
-├── db/                # optional: init.sql or migration files
+├── services/
+│   ├── frontend/      # Next.js frontend
+│   ├── orchestrator/  # API gateway and pipeline coordinator
+│   ├── demucs/        # vocal separation microservice
+│   ├── whisper/       # transcription microservice
+│   ├── classifier/    # AI/human prediction microservice
+│   └── acousti/       # audio identification microservice
+├── database/          # init.sql or migration files
+├── docs/              # deployment and operations documentation
 ├── docker-compose.yml
 ├── .env.local
 ├── .gitignore
 └── README.md
 
+See [docs/README.md](docs/README.md) for deployment and operations instructions.
+
 ### 🧱 Microservices
 
-#### 1. `demucs-api`
+#### 1. `demucs`
 
 - **POST /separate**
   - Input: `.mp3` or `.wav` file
   - Output: Paths to `vocals.wav` and `accompaniment.wav`
 
-#### 2. `whisper-api`
+#### 2. `whisper`
 
 - **POST /transcribe**
   - Input: `.wav` (vocals only)
   - Output: Raw transcription (lyrics), language code
 
-#### 3. `classifier-api`
+#### 3. `classifier`
 
 - **POST /classify**
   - Input: `lyrics` (string)
@@ -97,7 +103,7 @@ Built in Next.js, the frontend allows users to:
 ------------------------------------------------------
 
 
-> ⚙️ Yes, microservices can run concurrently if jobs are queued and dispatched correctly. For example, you can process multiple songs at once by scaling containers (e.g., 2 `demucs-api`, 3 `whisper-api`, etc.) or using a job queue.
+> ⚙️ Yes, microservices can run concurrently if jobs are queued and dispatched correctly. For example, you can process multiple songs at once by scaling containers (e.g., 2 `demucs`, 3 `whisper`, etc.) or using a job queue.
 
 ### 🛠 DevOps Stack
 

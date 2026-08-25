@@ -1,4 +1,4 @@
-# whisper-api/Dockerfile
+# services/whisper/Dockerfile
 
 FROM python:3.10-slim-bookworm
 

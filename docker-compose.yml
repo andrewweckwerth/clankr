@@ -24,7 +24,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command:
       - "postgres"
       - "-c"
@@ -50,10 +50,10 @@ services:
   frontend:
     logging: *default-logging
     build:
-      context: ./frontend
+      context: ./services/frontend
       target: dev
     depends_on:
-      orchestrator_api:
+      orchestrator:
         condition: service_healthy
     restart: on-failure
     environment:
@@ -64,17 +64,17 @@ services:
     working_dir: /app
     command: sh -c "npm run dev"
     volumes:
-      - ./frontend:/app
+      - ./services/frontend:/app
       - /app/node_modules
     env_file:
       - ${ENV_FILE:-.env}
 
-  demucs_api:
+  demucs:
     logging: *default-logging
-    build: ./demucs-api
+    build: ./services/demucs
     restart: on-failure
     volumes:
-      - ./demucs-api:/app
+      - ./services/demucs:/app
     environment: *minio-env
     depends_on:
       minio_init:
@@ -90,12 +90,12 @@ services:
       start_period: 20s
 
 
-  whisper_api:
+  whisper:
     logging: *default-logging
-    build: ./whisper-api
+    build: ./services/whisper
     restart: on-failure
     volumes:
-      - ./whisper-api:/app
+      - ./services/whisper:/app
     environment: *minio-env
     depends_on:
       minio_init:
@@ -117,12 +117,12 @@ services:
       start_period: 20s
 
 
-  classifier_api:
+  classifier:
     logging: *default-logging
-    build: ./classifier-api
+    build: ./services/classifier
     restart: on-failure
     volumes:
-      - ./classifier-api:/app
+      - ./services/classifier:/app
     working_dir: /app
     command: >
       uvicorn classifier_runner:app
@@ -206,12 +206,12 @@ services:
 
 
 
-  acousti_api:
+  acousti:
     logging: *default-logging
-    build: ./acousti-api
+    build: ./services/acousti
     restart: on-failure
     volumes:
-      - ./acousti-api:/app
+      - ./services/acousti:/app
     environment: *minio-env
     depends_on:
       minio_init:
@@ -229,24 +229,24 @@ services:
       timeout: 3s
       retries: 30
       start_period: 20s
-  orchestrator_api:
+  orchestrator:
     logging: *default-logging
-    build: ./orchestrator-api
+    build: ./services/orchestrator
     depends_on:
       minio_init:
         condition: service_completed_successfully
       db:
         condition: service_healthy
-      demucs_api:
+      demucs:
         condition: service_healthy
-      whisper_api:
+      whisper:
         condition: service_healthy
-      classifier_api:
+      classifier:
         condition: service_healthy
-      acousti_api:
+      acousti:
         condition: service_healthy
     volumes:
-      - ./orchestrator-api:/app
+      - ./services/orchestrator:/app
     environment: *minio-env
     working_dir: /app
     command: >

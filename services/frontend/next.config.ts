@@ -10,11 +10,10 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://orchestrator_api:8000/api/:path*',
+        destination: 'http://orchestrator:8000/api/:path*',
       },
     ];
   },
 };
 
 export default nextConfig;
-

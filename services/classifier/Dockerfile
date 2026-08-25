@@ -1,4 +1,4 @@
-# classifier-api/Dockerfile
+# services/classifier/Dockerfile
 FROM python:3.10-slim
 
 WORKDIR /app

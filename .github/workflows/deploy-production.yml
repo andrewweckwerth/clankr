@@ -17,12 +17,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: frontend, context: ./frontend }
-          - { name: demucs-api, context: ./demucs-api }
-          - { name: whisper-api, context: ./whisper-api }
-          - { name: classifier-api, context: ./classifier-api }
-          - { name: acousti-api, context: ./acousti-api }
-          - { name: orchestrator-api, context: ./orchestrator-api }
+          - { name: frontend, context: ./services/frontend }
+          - { name: demucs, context: ./services/demucs }
+          - { name: whisper, context: ./services/whisper }
+          - { name: classifier, context: ./services/classifier }
+          - { name: acousti, context: ./services/acousti }
+          - { name: orchestrator, context: ./services/orchestrator }
     permissions:
       contents: read
       packages: write

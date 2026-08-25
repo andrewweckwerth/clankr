@@ -43,10 +43,10 @@ services:
     logging: *default-logging
     image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner/clankr}/frontend:${IMAGE_TAG:-latest}
     build:
-      context: ./frontend
+      context: ./services/frontend
       target: runner 
     depends_on:
-      orchestrator_api:
+      orchestrator:
         condition: service_healthy
     restart: unless-stopped
     environment:
@@ -80,7 +80,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command:
       - "postgres"
       - "-c"
@@ -133,10 +133,10 @@ services:
       mc mb --ignore-existing local/$$MINIO_BUCKET
     restart: "no"
 
-  demucs_api:
+  demucs:
     logging: *default-logging
-    image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner/clankr}/demucs-api:${IMAGE_TAG:-latest}
-    build: ./demucs-api
+    image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner/clankr}/demucs:${IMAGE_TAG:-latest}
+    build: ./services/demucs
     restart: unless-stopped
     environment: *minio-env
     depends_on:
@@ -153,10 +153,10 @@ services:
       start_period: 20s
 
 
-  whisper_api:
+  whisper:
     logging: *default-logging
-    image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner/clankr}/whisper-api:${IMAGE_TAG:-latest}
-    build: ./whisper-api
+    image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner/clankr}/whisper:${IMAGE_TAG:-latest}
+    build: ./services/whisper
     restart: unless-stopped
     environment: *minio-env
     depends_on:
@@ -182,10 +182,10 @@ services:
   #   volumes:
   #     - ./models:/models
   #   restart: unless-stopped
-  classifier_api:
+  classifier:
     logging: *default-logging
-    image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner/clankr}/classifier-api:${IMAGE_TAG:-latest}
-    build: ./classifier-api
+    image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner/clankr}/classifier:${IMAGE_TAG:-latest}
+    build: ./services/classifier
     restart: unless-stopped
     working_dir: /app
     expose:
@@ -204,10 +204,10 @@ services:
     env_file:
       - ${ENV_FILE:-.env}
 
-  acousti_api:
+  acousti:
     logging: *default-logging
-    image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner/clankr}/acousti-api:${IMAGE_TAG:-latest}
-    build: ./acousti-api
+    image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner/clankr}/acousti:${IMAGE_TAG:-latest}
+    build: ./services/acousti
     restart: unless-stopped
     environment: *minio-env
     depends_on:
@@ -222,22 +222,22 @@ services:
       timeout: 3s
       retries: 30
       start_period: 20s
-  orchestrator_api:
+  orchestrator:
     logging: *default-logging
-    image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner/clankr}/orchestrator-api:${IMAGE_TAG:-latest}
-    build: ./orchestrator-api
+    image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner/clankr}/orchestrator:${IMAGE_TAG:-latest}
+    build: ./services/orchestrator
     depends_on:
       minio_init:
         condition: service_completed_successfully
       db:
         condition: service_healthy
-      demucs_api:
+      demucs:
         condition: service_healthy
-      whisper_api:
+      whisper:
         condition: service_healthy
-      classifier_api:
+      classifier:
         condition: service_healthy
-      acousti_api:
+      acousti:
         condition: service_healthy
     environment: *minio-env
     working_dir: /app
