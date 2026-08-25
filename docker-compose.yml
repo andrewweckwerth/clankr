@@ -1,7 +1,21 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-minio-env: &minio-env
+  MINIO_ENDPOINT: minio:9000
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-clankr}
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-change-me}
+  MINIO_BUCKET: ${MINIO_BUCKET:-clankr-audio}
+  MINIO_SECURE: "false"
+
 services:
 
 
   db:
+    logging: *default-logging
     image: postgres:15
     restart: always
     environment:
@@ -11,7 +25,6 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-      - ./shared_data:/shared_data
     command:
       - "postgres"
       - "-c"
@@ -35,6 +48,7 @@ services:
 
 
   frontend:
+    logging: *default-logging
     build:
       context: ./frontend
       target: dev
@@ -51,17 +65,20 @@ services:
     command: sh -c "npm run dev"
     volumes:
       - ./frontend:/app
-      - ./shared_data:/shared_data
       - /app/node_modules
     env_file:
       - ${ENV_FILE:-.env}
 
   demucs_api:
+    logging: *default-logging
     build: ./demucs-api
     restart: on-failure
     volumes:
       - ./demucs-api:/app
-      - ./shared_data:/shared_data
+    environment: *minio-env
+    depends_on:
+      minio_init:
+        condition: service_completed_successfully
     working_dir: /app
     expose:
       - "8000"
@@ -74,17 +91,20 @@ services:
 
 
   whisper_api:
+    logging: *default-logging
     build: ./whisper-api
     restart: on-failure
     volumes:
       - ./whisper-api:/app
-      - ./shared_data:/shared_data
+    environment: *minio-env
+    depends_on:
+      minio_init:
+        condition: service_completed_successfully
     working_dir: /app
     command: >
       uvicorn whisper_runner:app
       --host 0.0.0.0 --port 8000
       --reload --reload-dir /app
-      --log-config /shared_data/configs/logconfig.json
     env_file:
       - ${ENV_FILE:-.env}
     expose:
@@ -98,17 +118,16 @@ services:
 
 
   classifier_api:
+    logging: *default-logging
     build: ./classifier-api
     restart: on-failure
     volumes:
       - ./classifier-api:/app
-      - ./shared_data:/shared_data
     working_dir: /app
     command: >
       uvicorn classifier_runner:app
       --host 0.0.0.0 --port 8000
       --reload --reload-dir /app
-      --log-config /shared_data/configs/logconfig.json
     expose:
       - "8000"
     ports:
@@ -120,12 +139,48 @@ services:
       retries: 30
       start_period: 20s
     environment:
+      <<: *minio-env
       AI_BASE_URL: "http://ollama:11434"
       AI_MODEL: "qwen2.5:3b-instruct"   # or whatever LocalAI exposes
       AI_API_KEY: "secret"
     env_file:
       - ${ENV_FILE:-.env}
+  minio:
+    logging: *default-logging
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-clankr}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-change-me}
+    command: server /data --console-address ":9001"
+    volumes:
+      - miniodata:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio_init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-clankr}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-change-me}
+      MINIO_BUCKET: ${MINIO_BUCKET:-clankr-audio}
+    entrypoint: ["/bin/sh", "-c"]
+    command: >-
+      mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+      mc mb --ignore-existing local/$$MINIO_BUCKET
+    restart: "no"
+
   ollama:
+    logging: *default-logging
     image: ollama/ollama:latest
     # Platform is intentionally unspecified so this works on Linode x86_64 and ARM hosts.
     ports:
@@ -152,16 +207,19 @@ services:
 
 
   acousti_api:
+    logging: *default-logging
     build: ./acousti-api
     restart: on-failure
     volumes:
       - ./acousti-api:/app
-      - ./shared_data:/shared_data
+    environment: *minio-env
+    depends_on:
+      minio_init:
+        condition: service_completed_successfully
     command: >
       uvicorn acousti_runner:app
       --host 0.0.0.0 --port 8000
       --reload --reload-dir /app
-      --log-config /shared_data/configs/logconfig.json
     working_dir: /app
     env_file:
       - ${ENV_FILE:-.env}
@@ -172,8 +230,11 @@ services:
       retries: 30
       start_period: 20s
   orchestrator_api:
+    logging: *default-logging
     build: ./orchestrator-api
     depends_on:
+      minio_init:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       demucs_api:
@@ -186,13 +247,12 @@ services:
         condition: service_healthy
     volumes:
       - ./orchestrator-api:/app
-      - ./shared_data:/shared_data
+    environment: *minio-env
     working_dir: /app
     command: >
       uvicorn orchestrator_runner:app
       --host 0.0.0.0 --port 8000
       --reload --reload-dir /app
-      --log-config /shared_data/configs/logconfig.json
     env_file:
       - ${ENV_FILE:-.env}
     expose:
@@ -203,19 +263,6 @@ services:
       timeout: 3s
       retries: 30
       start_period: 20s
-  # fluentd:
-  #   build: ./fluentd
-  #   user: "0:0"                      # keep root so it can read /var/lib/docker/containers
-  #   restart: unless-stopped
-  #   environment:
-  #     FLUENT_UID: "0"
-  #     OCI_CONFIG_FILE: /fluentd/oci_config      # <-- explicit path to your config file
-  #   volumes:
-  #     - /var/lib/docker/containers:/var/lib/docker/containers:ro
-  #     - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf:ro
-  #     - ./fluentd/oci_api_key.pem:/fluentd/oci_api_key.pem:ro
-  #     - ./fluentd/oci_config:/fluentd/oci_config:ro  # <-- mount the file here
-        
-
 volumes:
   pgdata:
+  miniodata:

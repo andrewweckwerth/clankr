@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS songs (
   lyrics TEXT,
   classification TEXT CHECK (classification IN ('AI','Human')),
   accuracy NUMERIC(5,4),
-  file_path TEXT,
+  file_path TEXT,                    -- MinIO object key, e.g. stems/<id>.wav
   duration INTEGER,
   fingerprint TEXT,
   fingerprint_hash TEXT UNIQUE,     -- natural key for dedupe/upsert
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   lyrics           TEXT,
   classification   TEXT CHECK (classification IN ('AI','Human')),
   accuracy         NUMERIC(5,4),
-  file_path       TEXT,
+  file_path       TEXT,              -- MinIO object key, e.g. raw/<id>.mp3
   duration         INTEGER,
   fingerprint      TEXT,
   fingerprint_hash TEXT,     -- natural key for dedupe/upsert

@@ -1,0 +1,90 @@
+name: Build and deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/clankr
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: frontend, context: ./frontend }
+          - { name: demucs-api, context: ./demucs-api }
+          - { name: whisper-api, context: ./whisper-api }
+          - { name: classifier-api, context: ./classifier-api }
+          - { name: acousti-api, context: ./acousti-api }
+          - { name: orchestrator-api, context: ./orchestrator-api }
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:latest
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    name: Deploy to Linveo VM
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Configure SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.LINVEO_SSH_KEY }}
+      - name: Trust Linveo host key
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' '${{ secrets.LINVEO_KNOWN_HOSTS }}' > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Log in to GHCR on the VM
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          LINVEO_HOST: ${{ secrets.LINVEO_HOST }}
+          LINVEO_USER: ${{ secrets.LINVEO_USER }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh "$LINVEO_USER@$LINVEO_HOST" \
+            "docker login ghcr.io --username '$GHCR_USERNAME' --password-stdin"
+      - name: Pull images and restart production
+        env:
+          LINVEO_HOST: ${{ secrets.LINVEO_HOST }}
+          LINVEO_USER: ${{ secrets.LINVEO_USER }}
+          IMAGE_PREFIX: ${{ env.IMAGE_PREFIX }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          ssh "$LINVEO_USER@$LINVEO_HOST" \
+            "set -eu
+             cd /opt/clankr/app
+             git fetch origin main
+             git checkout main
+             git pull --ff-only origin main
+             IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$IMAGE_TAG' docker compose --project-name clankr-prod --env-file /opt/clankr/env/production.env -f docker-compose.prod.yml pull
+             IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$IMAGE_TAG' docker compose --project-name clankr-prod --env-file /opt/clankr/env/production.env -f docker-compose.prod.yml up -d --no-build --remove-orphans
+             docker image prune -f"

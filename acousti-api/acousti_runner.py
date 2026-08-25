@@ -5,8 +5,9 @@ from fastapi import FastAPI, UploadFile, Form, File
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import requests
-import shutil
 from pathlib import Path
+import tempfile
+from minio import Minio
 
 import logging
 
@@ -15,6 +16,34 @@ logging.basicConfig(
     format="%(levelname)-9s %(message)s",
 )
 logger = logging.getLogger("acousti")
+
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "clankr")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "change-me")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "clankr-audio")
+minio_client = Minio(
+    MINIO_ENDPOINT,
+    access_key=MINIO_ACCESS_KEY,
+    secret_key=MINIO_SECRET_KEY,
+    secure=os.getenv("MINIO_SECURE", "false").lower() == "true",
+)
+
+
+def download_object(object_key: str, suffix: str = "") -> str:
+    fd, path = tempfile.mkstemp(prefix="clankr-", suffix=suffix)
+    os.close(fd)
+    try:
+        minio_client.fget_object(MINIO_BUCKET, object_key, path)
+        return path
+    except Exception:
+        if os.path.exists(path):
+            os.remove(path)
+        raise
+
+
+def upload_object(path: str, object_key: str, content_type: str) -> str:
+    minio_client.fput_object(MINIO_BUCKET, object_key, path, content_type=content_type)
+    return object_key
 
 app = FastAPI()
 
@@ -64,19 +93,16 @@ def lookup_acoustid(fingerprint, duration, api_key):
 
     return response.json()
 
-async def convert_audio(file_path: str) -> str:
+async def convert_audio(object_key: str) -> str:
     """
     Convert an uploaded audio file to WAV using ffmpeg.
     Returns the path of the converted WAV file.
     Raises subprocess.CalledProcessError on failure.
     """
-    input_path = file_path
-    base = os.path.basename(file_path)
-    output_path = f"/shared_data/preprocessed/{base}.wav"
-
-    # Save the uploaded file
-    # with open(input_path, "wb") as f:
-    #     shutil.copyfileobj(file.file, f)
+    suffix = Path(object_key).suffix
+    input_path = download_object(object_key, suffix=suffix)
+    base = os.path.splitext(os.path.basename(object_key))[0]
+    output_path = tempfile.mktemp(prefix="clankr-", suffix=".wav")
 
     try:
         subprocess.run(
@@ -89,13 +115,19 @@ async def convert_audio(file_path: str) -> str:
             capture_output=True,
             text=True
         )
-        os.remove(input_path)
-        return output_path  
+        output_key = f"preprocessed/{base}.wav"
+        upload_object(output_path, output_key, "audio/wav")
+        return output_key
     except subprocess.CalledProcessError as e:
-        os.remove(input_path) if os.path.exists(input_path) else None
+        if os.path.exists(input_path):
+            os.remove(input_path)
         raise RuntimeError(
             f"FFmpeg failed (stdout={e.stdout}, stderr={e.stderr})"
         )
+    finally:
+        for path in (input_path, output_path):
+            if os.path.exists(path):
+                os.remove(path)
 
 @app.get("/health")
 async def health():
@@ -118,6 +150,7 @@ async def convert(file_path: str = Form(...)):
 
 @app.post("/identify")
 async def identify(file_path: str = Form(...)):
+    local_path = None
     try:
         logger.info("🟦Identifying")
         
@@ -125,7 +158,8 @@ async def identify(file_path: str = Form(...)):
         if not api_key:
             raise RuntimeError("Missing ACOUSTID_API_KEY env var")
 
-        fingerprint, duration = run_fpcalc(file_path)
+        local_path = download_object(file_path, suffix=Path(file_path).suffix)
+        fingerprint, duration = run_fpcalc(local_path)
         raw_result = lookup_acoustid(fingerprint, duration, api_key)
 
         matches = []
@@ -146,3 +180,6 @@ async def identify(file_path: str = Form(...)):
 
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+    finally:
+        if local_path and os.path.exists(local_path):
+            os.remove(local_path)

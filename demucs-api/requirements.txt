@@ -3,3 +3,4 @@ uvicorn
 soundfile
 demucs
 python-multipart
+minio

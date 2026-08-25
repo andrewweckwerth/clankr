@@ -11,4 +11,4 @@ COPY . .
 
 
 EXPOSE 8000
-CMD ["uvicorn","classifier_runner:app","--host","0.0.0.0","--port","8000","--log-config","/shared_data/configs/logconfig.json"]
+CMD ["uvicorn","classifier_runner:app","--host","0.0.0.0","--port","8000"]

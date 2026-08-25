@@ -2,6 +2,8 @@ from fastapi import FastAPI, UploadFile, File, Form
 import os
 from pathlib import Path
 import traceback
+import tempfile
+from minio import Minio
 import soundfile as sf
 from fastapi.responses import JSONResponse
 from demucs.apply import apply_model
@@ -16,10 +18,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger("demucs")
 
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "clankr")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "change-me")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "clankr-audio")
+minio_client = Minio(
+    MINIO_ENDPOINT,
+    access_key=MINIO_ACCESS_KEY,
+    secret_key=MINIO_SECRET_KEY,
+    secure=os.getenv("MINIO_SECURE", "false").lower() == "true",
+)
+
+
+def download_object(object_key: str) -> str:
+    suffix = Path(object_key).suffix
+    fd, path = tempfile.mkstemp(prefix="clankr-", suffix=suffix)
+    os.close(fd)
+    try:
+        minio_client.fget_object(MINIO_BUCKET, object_key, path)
+        return path
+    except Exception:
+        if os.path.exists(path):
+            os.remove(path)
+        raise
+
+
+def upload_object(path: str, object_key: str) -> str:
+    minio_client.fput_object(MINIO_BUCKET, object_key, path, content_type="audio/wav")
+    return object_key
+
 app = FastAPI()
 MODEL = get_model(name="htdemucs")
-OUTPUT_DIR = Path("/shared_data/stems")
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def separate_vocals(file_path: str, output_path: str):
@@ -42,18 +71,25 @@ async def health():
 @app.post("/separate")
 async def separate(file_path: str = Form(...)):
     logger.info("🟦Separating Stems")
-    base = os.path.basename(file_path)
-    output_path = f"/shared_data/stems/{base}.wav"
+    base = os.path.splitext(os.path.basename(file_path))[0]
+    input_path = None
+    output_path = tempfile.mktemp(prefix="clankr-", suffix=".wav")
 
     try:
-        success = separate_vocals(str(file_path), output_path)
-        os.remove(file_path)
+        input_path = download_object(file_path)
+        success = separate_vocals(input_path, output_path)
 
         if success:
+            output_key = f"stems/{base}.wav"
+            upload_object(output_path, output_key)
             logger.info("🟦Stems Separated Successfuly")
-            return JSONResponse({"file_path": output_path})
+            return JSONResponse({"file_path": output_key})
         else:
             return {"status": "error", "message": "No vocals stem found."}
     except Exception as e:
         traceback.print_exc()
         return {"status": "error", "message": str(e)}
+    finally:
+        for path in (input_path, output_path):
+            if path and os.path.exists(path):
+                os.remove(path)
