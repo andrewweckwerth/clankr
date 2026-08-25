@@ -17,9 +17,6 @@ from services import (
 )
 import traceback
 from utils import (
-    SHARED_PATH, 
-    STEMS_PATH, 
-    RAW_PATH,
     FRONTEND_ORIGIN, 
     save_uploaded_file, 
     compute_fingerprint_hash
@@ -167,10 +164,9 @@ async def process_job(conn):
             if(job["want_demucs"]):
                 # logger.info(song["file_path"])
                 # logger.info(song["file_path"])
-                # logger.info(f"testing {song['file_path'].startswith('/shared_data/stems')}")
                 # logger.info(job["current_stage"])
                 
-                if(song and song.get("file_path") and song["file_path"].startswith("/shared_data/stems")):
+                if(song and song.get("file_path") and song["file_path"].startswith("stems/")):
                     logger.info(song["file_path"])
                     job["file_path"] = song["file_path"]
                     job["done_demucs"] = True
@@ -478,7 +474,7 @@ async def analyze(
             if not audio:
                 return {"success": False, "error": "Missing audio file for input_type 'audio'"}
             raw_filename=save_uploaded_file(audio)
-            file_path = os.path.join(RAW_PATH, raw_filename)
+            file_path = raw_filename
 
 
         if input_type == "search":
@@ -498,7 +494,7 @@ async def analyze(
             return {"success": False, "error": "Not found", "status": 404}
         
         if input_type == "text":
-            file_path="delete"
+            file_path=None
 
 
 

@@ -21,7 +21,7 @@ files:
 ## First-time Linode setup
 
 Use an Ubuntu 24.04 LTS x86_64 instance with enough disk for Docker images,
-Whisper, Demucs, and the Ollama model. Install Docker Engine and Compose v2,
+Whisper, Demucs, Ollama, and MinIO. Install Docker Engine and Compose v2,
 clone the repository into `/opt/clankr/app`, then create the two env files from
 `.env.example`.
 
@@ -40,6 +40,11 @@ After the first startup, pull the classifier model once:
 ENV_FILE=/opt/clankr/env/production.env docker compose --project-name clankr-prod --env-file /opt/clankr/env/production.env \
   -f docker-compose.prod.yml exec ollama ollama pull qwen2.5:3b-instruct
 ```
+
+MinIO stores uploaded audio and generated stems in the `clankr-audio` bucket.
+Set `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, and `MINIO_BUCKET` in each private
+environment file. The application services use the internal `minio:9000`
+endpoint; the MinIO console is not exposed by the production stack.
 
 ## Start production
 
@@ -79,6 +84,20 @@ docker compose --project-name clankr-prod --env-file /opt/clankr/env/production.
 
 Development uses the same commands with `develop`, `clankr-dev`, and
 `development.env`.
+
+## GitHub Actions deployment
+
+Pushing to `main` builds the six application images and publishes them to
+GitHub Container Registry (GHCR), then the workflow connects to the Linveo VM,
+pulls the images tagged with that commit SHA, and restarts `clankr-prod`.
+
+Add these repository secrets in GitHub: `LINVEO_HOST`, `LINVEO_USER`,
+`LINVEO_SSH_KEY`, `LINVEO_KNOWN_HOSTS` (the trusted output of
+`ssh-keyscan -H <host>`), `GHCR_USERNAME`, and `GHCR_TOKEN` (a classic GitHub
+PAT with `read:packages`).
+
+The VM needs Docker Compose v2, a checkout at `/opt/clankr/app`, the private
+`/opt/clankr/env/production.env` file, and Git read access to `main`.
 
 ## Backups
 
