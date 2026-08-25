@@ -1,133 +1,43 @@
-## AI Lyrics Detector – Fullstack Architecture and DevOps Plan
+# Clankr
 
-### 🧩 Project Overview
+Clankr is a self-hosted audio-analysis application that explores whether song lyrics appear AI-generated. It combines audio fingerprinting, vocal separation, speech-to-text, and an LLM-backed classifier behind a small Dockerized microservice system.
 
-A self-hosted, microservice-based web application that lets users upload `.mp3` files, runs vocal separation (Demucs), transcribes vocals to lyrics (Whisper), and classifies lyrics as AI- or human-generated.
+## Why this project is interesting
 
-clankr/
-├── services/
-│   ├── frontend/      # Next.js frontend
-│   ├── orchestrator/  # API gateway and pipeline coordinator
-│   ├── demucs/        # vocal separation microservice
-│   ├── whisper/       # transcription microservice
-│   ├── classifier/    # AI/human prediction microservice
-│   └── acousti/       # audio identification microservice
-├── database/          # init.sql or migration files
-├── docs/              # deployment and operations documentation
-├── docker-compose.yml
-├── .env.local
-├── .gitignore
-└── README.md
+- A Next.js frontend exposes one workflow for audio uploads, pasted lyrics, and metadata search.
+- A FastAPI orchestrator turns optional analysis stages into durable, database-backed jobs.
+- PostgreSQL, MinIO, Docker Compose, GitHub Actions, and an internal Ollama model make the project deployable without a managed cloud dependency.
+- The processing pipeline demonstrates service boundaries, asynchronous work, object storage, deduplication, health checks, and production deployment.
 
-See [docs/README.md](docs/README.md) for deployment and operations instructions.
+```text
+Browser → Next.js → Orchestrator → Acousti → Demucs → Whisper → Classifier → Ollama
+                              ├──────── PostgreSQL ────────┤
+                              └──────── MinIO audio ───────┘
+```
 
-### 🧱 Microservices
+## Repository
 
-#### 1. `demucs`
+- `services/frontend` — Next.js user interface
+- `services/orchestrator` — API, job workers, and persistence
+- `services/acousti` — FFmpeg, Chromaprint, and AcoustID integration
+- `services/demucs` — vocal isolation
+- `services/whisper` — transcription
+- `services/classifier` — LLM classification
+- `database/init.sql` — current PostgreSQL schema
+- `docs/` — architecture, development, data model, and operations notes
 
-- **POST /separate**
-  - Input: `.mp3` or `.wav` file
-  - Output: Paths to `vocals.wav` and `accompaniment.wav`
+## Run locally
 
-#### 2. `whisper`
+The supported local workflow uses Docker Compose:
 
-- **POST /transcribe**
-  - Input: `.wav` (vocals only)
-  - Output: Raw transcription (lyrics), language code
+```bash
+docker compose --env-file .env up --build
+```
 
-#### 3. `classifier`
+Then open [http://localhost:3000](http://localhost:3000). The classifier also requires the configured Ollama model to be available in the Ollama container.
 
-- **POST /classify**
-  - Input: `lyrics` (string)
-  - Output: `{ prediction: "AI" | "Human", confidence: float }`
+See the [documentation index](docs/README.md) for the system design and local development details.
 
-#### 4. `db-api` (Main Backend)
+## Project status
 
-- Next.js or FastAPI
-
-- **POST /api/analyze**
-
-  - Accepts: `.mp3` and flags to control pipeline steps
-  - Optional flags:
-    - `run_demucs`: bool
-    - `run_whisper`: bool
-    - `run_classifier`: bool
-    - `store_result`: bool
-  - Orchestrates the above 3 services
-  - Stores result in Postgres
-
-- **GET /api/songs** — list all processed songs
-
-- **GET /api/songs/:id** — full song result
-
-- **POST /api/songs** — manually insert song/lyrics
-
-- **DELETE /api/songs/:id** — delete a record
-
-### 🖼️ Frontend Features
-
-Built in Next.js, the frontend allows users to:
-
-- View a list of previously analyzed songs with details (lyrics, AI verdict, etc.)
-- Add a new song by uploading an `.mp3` file
-- Select which steps to run for each upload:
-  - ✅ Vocal separation (Demucs)
-  - ✅ Transcription (Whisper)
-  - ✅ AI classification
-- View individual song result pages with full info and media playback
-- UI toggles for selecting partial/full pipeline (e.g. "Just get vocals")
-- Live **Processing Queue View**:
-  - Shows current tasks in progress
-  - Indicates which microservice is active for each song
-  - Useful for debugging and tracking task progress
-
-
-------------------------------------------------------
-| Clankr 🎧                                            |
-------------------------------------------------------
-| [🔊 Upload Audio] [📝 Paste Lyrics]                 |
-|                                                    |
-|   [ ] Isolate Vocals (Demucs)                      |
-|   [ ] Transcribe Vocals (Demucs + Whisper)         |
-|   [ ] Detect AI Lyrics from audio (Demucs + Whisper + Classifier) |
-|   [ ] Detect AI Lyrics from text (Classifier)      |
-|                                                    |
-|   [ Song Title ________ ]                          |
-|   [ Artist  ________ ]                             |
-|                                                    |
-|   [Choose File 📁]   [Submit 🚀]                    |
-------------------------------------------------------
-| 📂 Processed Songs | 📋 Queue                      |
-------------------------------------------------------
-| 🎵 Song Title | 👤 Artist | ✅ Done | 🔍 View    |
-------------------------------------------------------
-
-
-> ⚙️ Yes, microservices can run concurrently if jobs are queued and dispatched correctly. For example, you can process multiple songs at once by scaling containers (e.g., 2 `demucs`, 3 `whisper`, etc.) or using a job queue.
-
-### 🛠 DevOps Stack
-
-- **Containerization**: Docker for all services
-- **Orchestration**: Docker Compose for local + Goodwill laptop
-- **CI/CD**: GitHub Actions
-  - On push to `main`, SSH into Linux host
-  - Run `git pull && docker-compose up --build -d`
-- **Database**: Postgres, internal service
-- **Secrets**: .env files locally, GitHub Secrets in CI
-
-### 🛡️ Network Security
-
-- Microservices are **not exposed to the public**
-- Only `frontend` (Next.js app) is accessible
-- Services communicate internally via Docker network
-
-### 🗺️ Future Ideas
-
-- Add Redis queue and task manager (Celery or RQ)
-- Add Nginx or Traefik as reverse proxy with TLS
-- Add Prometheus + Grafana for container monitoring
-- Optional migration to Kubernetes (K3s)
-
----
-
-Let me know if you want to expand this into a README or generate actual code/stubs.
+This is an active engineering project. The current implementation uses PostgreSQL polling instead of a dedicated queue, has no automated test suite, and treats the classifier as a probabilistic signal rather than proof of authorship. Those tradeoffs are documented alongside the architecture.

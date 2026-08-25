@@ -1,10 +1,11 @@
 # services/demucs/Dockerfile
-FROM python:3.10-slim-bookworm
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
 # Install system deps
-RUN apt-get update && apt-get install -y ffmpeg git curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ffmpeg git curl build-essential && rm -rf /var/lib/apt/lists/*
+ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 # Install Python deps
 COPY requirements.txt .

@@ -16,7 +16,7 @@ services:
 
   db:
     logging: *default-logging
-    image: postgres:15
+    image: postgres:18
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -174,9 +174,11 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-change-me}
       MINIO_BUCKET: ${MINIO_BUCKET:-clankr-audio}
     entrypoint: ["/bin/sh", "-c"]
-    command: >-
-      mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
-      mc mb --ignore-existing local/$$MINIO_BUCKET
+    command:
+      - >-
+        set -eu;
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
+        mc mb --ignore-existing "local/$$MINIO_BUCKET"
     restart: "no"
 
   ollama:
