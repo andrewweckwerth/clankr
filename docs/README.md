@@ -10,6 +10,7 @@ This documentation describes the implementation currently present in the reposit
 - [Data model and pipeline](data-model.md) — PostgreSQL tables, object keys, job state, deduplication, and completion behavior.
 - [Local development](development.md) — prerequisites, configuration, startup, useful commands, and verification.
 - [Operations and deployment](operations.md) — production topology, CI/CD, secrets, backups, and troubleshooting.
+- [Roadmap](roadmap.md) — prioritized product, frontend, authentication, reliability, queue, and scaling work.
 
 ## Repository map
 
