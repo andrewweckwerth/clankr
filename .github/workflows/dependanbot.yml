@@ -1,0 +1,38 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /services/frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: pip
+    directory: /services/demucs
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pip
+    directory: /services/whisper
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pip
+    directory: /services/classifier
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pip
+    directory: /services/acousti
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pip
+    directory: /services/orchestrator
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
