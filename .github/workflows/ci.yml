@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Validate Docker Compose configuration
+        env:
+          ENV_FILE: /dev/null
+          MINIO_ENDPOINT: minio:9000
+          MINIO_ACCESS_KEY: clankr-ci
+          MINIO_SECRET_KEY: clankr-ci-secret
+          MINIO_BUCKET: clankr-ci
+          MINIO_SECURE: "false"
+          POSTGRES_USER: clankr
+          POSTGRES_PASSWORD: clankr-ci-password
+          POSTGRES_DB: clankr
+        run: docker compose -f docker-compose.dev.yml config
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: services/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: services/frontend
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: services/frontend
+        run: npm run lint
+
+      - name: Build frontend
+        working-directory: services/frontend
+        run: npm run build
+
+      - name: Check Python syntax
+        run: python3 -m compileall -q services
+
+  build-images:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [frontend, demucs, whisper, classifier, acousti, orchestrator]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.service }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/${{ matrix.service }}
+          push: false
+          tags: clankr/${{ matrix.service }}:ci
+          cache-from: type=gha,scope=ci-${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=ci-${{ matrix.service }}

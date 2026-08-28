@@ -2,10 +2,17 @@
 import os
 import json
 import logging
+import asyncio
+import socket
+import uuid
+from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any
-from fastapi import FastAPI, HTTPException, Body, Form
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import httpx
+from redis.asyncio import Redis
+from redis.exceptions import ResponseError
 
 # ----------------------------
 # Logging
@@ -40,6 +47,11 @@ AI_API_KEY = os.getenv("AI_API_KEY", "").strip()
 AI_TEMPERATURE = float(os.getenv("AI_TEMPERATURE", "0"))
 AI_NUM_CTX = int(os.getenv("AI_NUM_CTX", "4096"))
 AI_TIMEOUT_SECS = float(os.getenv("AI_TIMEOUT_SECS", "120"))
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+REDIS_STREAM = os.getenv("REDIS_CLASSIFY_STREAM", "clankr:queue:classify")
+REDIS_GROUP = os.getenv("REDIS_CLASSIFY_GROUP", "classifier")
+REDIS_RESULT_STREAM = os.getenv("REDIS_RESULT_STREAM", "clankr:events:results")
+REDIS_VISIBILITY_TIMEOUT_MS = int(os.getenv("REDIS_VISIBILITY_TIMEOUT_MS", "3600000"))
 
 # ----------------------------
 # Prompts
@@ -72,7 +84,13 @@ class LyricsInput(BaseModel):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    try:
+        await app.state.redis.ping()
+        if app.state.worker_task.done():
+            raise RuntimeError("Redis worker is not running")
+        return {"status": "ok", "redis": "ok"}
+    except Exception as exc:
+        return JSONResponse(status_code=503, content={"status": "unavailable", "error": str(exc)})
 
 
 @app.get("/health/llm")
@@ -222,24 +240,95 @@ def _collapse_to_two_fields(judge: Dict[str, Any]) -> Dict[str, Any]:
     return {"classification": classification, "accuracy": round(float(accuracy), 4)}
 
 
-# ----------------------------
-# Endpoint
-# ----------------------------
-@app.post("/classify")
-async def classify(lyrics: str = Form(...)):
-    logger.info(lyrics)
+async def process_task(task: dict) -> dict:
+    if task.get("stage") != "classify":
+        raise ValueError(f"Classifier cannot process stage {task.get('stage')}")
+    lyrics = task.get("lyrics")
     if not lyrics or not lyrics.strip():
-        raise HTTPException(400, detail="Missing 'lyrics'")
+        raise ValueError("Classification task is missing lyrics")
 
     logger.info("🟦Classifying Lyrics (%s) model=%s", AI_PROVIDER, AI_MODEL)
-    try:
-        judge = await _ask_llm(lyrics)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("LLM call failed")
-        raise HTTPException(status_code=500, detail=str(e))
-
+    judge = await _ask_llm(lyrics)
     out = _collapse_to_two_fields(judge)
     logger.info("🟦Result: %s (accuracy=%s)", out["classification"], out["accuracy"])
     return out
+
+
+async def ensure_group(redis: Redis) -> None:
+    try:
+        await redis.xgroup_create(REDIS_STREAM, REDIS_GROUP, id="0-0", mkstream=True)
+    except ResponseError as exc:
+        if "BUSYGROUP" not in str(exc):
+            raise
+
+
+async def next_message(redis: Redis, consumer: str):
+    claimed = await redis.xautoclaim(
+        REDIS_STREAM,
+        REDIS_GROUP,
+        consumer,
+        min_idle_time=REDIS_VISIBILITY_TIMEOUT_MS,
+        start_id="0-0",
+        count=1,
+    )
+    if len(claimed) > 1 and claimed[1]:
+        return claimed[1][0]
+    batches = await redis.xreadgroup(
+        REDIS_GROUP,
+        consumer,
+        {REDIS_STREAM: ">"},
+        count=1,
+        block=5000,
+    )
+    return batches[0][1][0] if batches and batches[0][1] else None
+
+
+async def publish_event(redis: Redis, event: dict) -> None:
+    await redis.xadd(
+        REDIS_RESULT_STREAM,
+        {"payload": json.dumps(event, separators=(",", ":"))},
+        maxlen=10000,
+        approximate=True,
+    )
+
+
+async def worker_loop(redis: Redis, stop: asyncio.Event) -> None:
+    consumer = f"classifier-{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
+    logger.info("Redis worker starting: %s", consumer)
+    while not stop.is_set():
+        message = await next_message(redis, consumer)
+        if not message:
+            continue
+        message_id, fields = message
+        task = json.loads(fields["payload"])
+        base_event = {"task_id": task["task_id"], "job_id": task["job_id"], "stage": "classify"}
+        try:
+            await publish_event(redis, {**base_event, "event": "started"})
+            result = await process_task(task)
+            await publish_event(redis, {**base_event, "event": "completed", "ok": True, "result": result})
+        except Exception as exc:
+            logger.exception("Classifier task %s failed", task.get("task_id"))
+            await publish_event(
+                redis,
+                {**base_event, "event": "completed", "ok": False, "error": str(exc), "result": {}},
+            )
+        await redis.xack(REDIS_STREAM, REDIS_GROUP, message_id)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.redis = Redis.from_url(REDIS_URL, decode_responses=True)
+    await app.state.redis.ping()
+    await ensure_group(app.state.redis)
+    app.state.stop_event = asyncio.Event()
+    app.state.worker_task = asyncio.create_task(worker_loop(app.state.redis, app.state.stop_event))
+    try:
+        yield
+    finally:
+        app.state.stop_event.set()
+        app.state.worker_task.cancel()
+        await asyncio.gather(app.state.worker_task, return_exceptions=True)
+        await app.state.redis.aclose()
+
+
+app.router.lifespan_context = lifespan

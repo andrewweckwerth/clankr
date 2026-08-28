@@ -3,3 +3,4 @@ uvicorn
 requests
 python-multipart
 minio
+redis>=5.0,<6
