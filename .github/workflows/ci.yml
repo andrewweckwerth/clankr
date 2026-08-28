@@ -52,7 +52,7 @@ jobs:
         run: python3 -m compileall -q services
 
   build-images:
-    name: Build images (${{ matrix.service }})
+    name: Build ${{ matrix.service }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
