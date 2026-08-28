@@ -85,6 +85,6 @@ jobs:
              git fetch origin main
              git checkout main
              git pull --ff-only origin main
-             IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$IMAGE_TAG' docker compose --project-name clankr-prod --env-file /opt/clankr/env/production.env -f docker-compose.prod.yml pull
-             IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$IMAGE_TAG' docker compose --project-name clankr-prod --env-file /opt/clankr/env/production.env -f docker-compose.prod.yml up -d --no-build --remove-orphans
+             IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$IMAGE_TAG' docker compose --project-name clankr-prod --env-file /opt/clankr/env/.env -f docker-compose.prod.yml pull
+             IMAGE_PREFIX='$IMAGE_PREFIX' IMAGE_TAG='$IMAGE_TAG' docker compose --project-name clankr-prod --env-file /opt/clankr/env/.env -f docker-compose.prod.yml up -d --no-build --remove-orphans
              docker image prune -f"
