@@ -1,77 +1,59 @@
-# System architecture
+# Architecture
 
-## Context
-
-Clankr turns audio or lyrics into persisted song-analysis results. The browser talks to the Next.js frontend, and the frontend proxies `/api/*` requests to the internal FastAPI orchestrator. The orchestrator owns job creation, pipeline sequencing, database writes, and calls to the specialist services.
+Clankr is a Next.js frontend backed by a FastAPI orchestrator, PostgreSQL, Redis Streams, MinIO, specialist workers, and Ollama.
 
 ```text
-Browser
-  │
-  ▼
 Next.js frontend (:3000)
-  │  Next.js rewrite: /api/* → http://orchestrator:8000/api/*
-  ▼
-FastAPI orchestrator (:8000)
-  ├── PostgreSQL (:5432)       jobs, songs, deduplication metadata
-  ├── MinIO (:9000)            raw audio, converted audio, vocal stems
-  ├── Acousti (:8000)          FFmpeg + fpcalc + AcoustID lookup
-  ├── Demucs (:8000)           vocal separation
-  ├── Whisper (:8000)          speech-to-text transcription
-  └── Classifier (:8000)       Ollama-backed AI/Human classification
-                                  │
-                                  ▼
-                              Ollama (:11434)
+        |
+FastAPI orchestrator (:8000) ---- PostgreSQL (:5432)
+        |                          jobs, songs, job_steps
+        +---- Redis (:6379) -------- stage queues and result events
+        +---- MinIO (:9000) -------- raw audio and derived objects
+        |
+        +---- Acousti / Demucs / Whisper / Classifier workers
+                                      |
+                                      +---- Ollama (:11434)
 ```
 
-In production, Traefik is the only public edge service. It terminates HTTPS and routes the configured hostname to the frontend. The specialist services, database, object store, orchestrator, and Ollama remain on Docker networks without public host ports.
+In production, Traefik is the only public edge service. It terminates HTTPS and routes the configured hostname to the frontend. Specialist services, PostgreSQL, Redis, MinIO, the orchestrator, and Ollama remain on internal Docker networks.
 
 ## Request flow
 
-1. The user selects an input mode and an output stage in the frontend.
-2. `POST /api/analyze` reaches the orchestrator through the Next.js rewrite.
-3. For audio input, the orchestrator stores the upload under `raw/` in MinIO.
-4. The orchestrator creates a row in `jobs` with boolean flags describing the requested stages.
-5. Three orchestrator worker tasks poll PostgreSQL and atomically claim jobs with `FOR UPDATE SKIP LOCKED`.
-6. Each worker runs one pending stage, persists its result, and leaves the job available for the next stage.
-7. When all requested stages are complete, the job data is upserted into `songs` and the job is marked `Completed`.
-8. The frontend polls the job endpoint while work is active and refreshes the song list after submission.
+1. The frontend sends `POST /api/analyze` to the orchestrator.
+2. Audio uploads are stored under `raw/` in MinIO; audio bytes never pass through Redis.
+3. The orchestrator creates a `jobs` row and one `job_steps` row per requested stage.
+4. A Redis Stream task is published for the first stage. Workers consume tasks, read/write MinIO objects, and publish result events.
+5. The orchestrator consumes result events, updates PostgreSQL transactionally, and queues the next requested stage.
+6. When all requested steps complete, the job is upserted into `songs` and marked `completed`.
+
+Redis Streams use consumer groups and at-least-once delivery. Abandoned pending messages can be reclaimed after `REDIS_VISIBILITY_TIMEOUT_MS`.
 
 ## Pipeline stages
 
-The stage order is fixed by `get_and_claim_job`:
+The fixed order is `identify → demucs → whisper → classify`.
 
-```text
-identify → demucs → whisper → classify
-```
-
-| UI output | Job flag | Service call | Main result |
+| UI output | Job step | Redis queue | Main result |
 | --- | --- | --- | --- |
-| Song Info | `want_identify` | Acousti convert + identify | title, artist, fingerprint, duration |
-| Stems | `want_demucs` | Demucs separate | `stems/<name>.wav` |
-| Lyrics | `want_whisper` | Whisper transcribe | lyrics text |
-| Classification | `want_classify` | Classifier classify | `AI`/`Human`, accuracy |
+| Song Info | `identify` | `clankr:queue:identify` | title, artist, fingerprint, duration |
+| Stems | `demucs` | `clankr:queue:demucs` | `stems/<name>.wav` |
+| Lyrics | `whisper` | `clankr:queue:whisper` | lyrics text |
+| Classification | `classify` | `clankr:queue:classify` | `AI`/`Human`, accuracy |
 
-Text input bypasses audio stages and supplies lyrics directly to the classifier. Search input performs a fuzzy PostgreSQL lookup and returns an existing song without creating a processing job when the similarity threshold is met.
+Text input skips audio stages and sends lyrics directly to the classifier. Search input performs a fuzzy PostgreSQL lookup and does not create a processing job when a match is found.
 
 ## Service boundaries
 
-Each Python service is a standalone FastAPI application in its own container. The orchestrator calls services over Docker DNS using environment-configurable URLs. Service calls use form fields rather than JSON for the main processing operations. Health checks are exposed at `GET /health`.
+Each specialist is a standalone FastAPI application with a Redis consumer in its lifespan. The orchestrator owns sequencing and PostgreSQL writes. The classifier calls Ollama over HTTP and returns the normalized classification result.
 
-The frontend is deliberately not a direct client of the worker services. This keeps internal service names and credentials out of the browser and gives the orchestrator one place to handle sequencing, timeouts, and persistence.
+## Redis configuration
 
-## Reliability characteristics
+Development and production run Redis 7 on the internal Docker network. The application reads `REDIS_URL`, defaulting to `redis://redis:6379/0`. Redis is both the asynchronous transport and a best-effort fingerprint-to-song cache; PostgreSQL remains authoritative.
 
-- Job claiming is transaction-safe for multiple workers through row locking and `SKIP LOCKED`.
-- Fingerprint hashes are used as a natural key for song upserts.
-- A failed stage marks the job `Failed`; there is no automatic retry policy.
-- Work is polled from PostgreSQL approximately every 0.5 seconds when idle.
-- Long-running model calls have per-service HTTP timeouts.
-- There is no external queue, distributed tracing, metrics backend, or dead-letter workflow in the current implementation.
+## Reliability and constraints
 
-## Design constraints
-
-- MinIO object keys, not local filesystem paths, are passed between services.
-- Temporary local files are created inside processing containers and removed after processing.
-- PostgreSQL initialization is supplied by `database/init.sql`; it is not a versioned migration system.
-- The classifier's output is a model judgment about surface cues in lyrics; it is not a provenance proof.
-
+- PostgreSQL is the source of truth for jobs and songs.
+- Duplicate result events are ignored after a step is complete.
+- Failed stages mark both the step and parent job `failed`; automatic retries are not implemented.
+- MinIO object-key contracts are `raw/`, `preprocessed/`, and `stems/`.
+- `database/init.sql` is initialization-only, not a migration system.
+- There is no external metrics backend, tracing system, or dead-letter workflow yet.
