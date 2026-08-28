@@ -19,7 +19,7 @@ database/init.sql                  PostgreSQL schema
 docker-compose.yml                 local development stack
 docker-compose.prod.yml            production stack
 services/frontend/                 Next.js web application
-services/orchestrator/             FastAPI API and database-backed workers
+services/orchestrator/             FastAPI API, Redis queue coordinator, and persistence
 services/acousti/                  FFmpeg + Chromaprint + AcoustID service
 services/demucs/                   vocal-separation service
 services/whisper/                  transcription service
@@ -29,4 +29,4 @@ services/classifier/               LLM-backed lyrics classifier
 
 ## Implementation status
 
-The codebase is an active project rather than a finished platform. The current system has no automated test suite, no formal schema migration mechanism, and uses database polling for work distribution. Those constraints are documented so future changes do not mistake planned behavior for implemented behavior.
+The codebase is an active project rather than a finished platform. The current system has no automated test suite, no formal schema migration mechanism, and uses Redis Streams for work distribution while PostgreSQL remains the source of truth. Those constraints are documented so future changes do not mistake planned behavior for implemented behavior.

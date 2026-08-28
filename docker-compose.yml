@@ -11,6 +11,11 @@ x-minio-env: &minio-env
   MINIO_BUCKET: ${MINIO_BUCKET:-clankr-audio}
   MINIO_SECURE: "false"
 
+x-redis-env: &redis-env
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+  REDIS_RESULT_STREAM: ${REDIS_RESULT_STREAM:-clankr:events:results}
+  REDIS_VISIBILITY_TIMEOUT_MS: ${REDIS_VISIBILITY_TIMEOUT_MS:-3600000}
+
 services:
 
 
@@ -46,6 +51,21 @@ services:
       retries: 5
       start_period: 20s
 
+  redis:
+    logging: *default-logging
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redisdata:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 
   frontend:
     logging: *default-logging
@@ -75,10 +95,13 @@ services:
     restart: on-failure
     volumes:
       - ./services/demucs:/app
-    environment: *minio-env
+    environment:
+      <<: [*minio-env, *redis-env]
     depends_on:
       minio_init:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     working_dir: /app
     expose:
       - "8000"
@@ -96,10 +119,13 @@ services:
     restart: on-failure
     volumes:
       - ./services/whisper:/app
-    environment: *minio-env
+    environment:
+      <<: [*minio-env, *redis-env]
     depends_on:
       minio_init:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     working_dir: /app
     command: >
       uvicorn whisper_runner:app
@@ -130,8 +156,9 @@ services:
       --reload --reload-dir /app
     expose:
       - "8000"
-    ports:
-      - "127.0.0.1:8001:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 100s
@@ -139,7 +166,7 @@ services:
       retries: 30
       start_period: 20s
     environment:
-      <<: *minio-env
+      <<: [*minio-env, *redis-env]
       AI_BASE_URL: "http://ollama:11434"
       AI_MODEL: "qwen2.5:3b-instruct"   # or whatever LocalAI exposes
       AI_API_KEY: "secret"
@@ -214,10 +241,13 @@ services:
     restart: on-failure
     volumes:
       - ./services/acousti:/app
-    environment: *minio-env
+    environment:
+      <<: [*minio-env, *redis-env]
     depends_on:
       minio_init:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     command: >
       uvicorn acousti_runner:app
       --host 0.0.0.0 --port 8000
@@ -239,17 +269,12 @@ services:
         condition: service_completed_successfully
       db:
         condition: service_healthy
-      demucs:
-        condition: service_healthy
-      whisper:
-        condition: service_healthy
-      classifier:
-        condition: service_healthy
-      acousti:
+      redis:
         condition: service_healthy
     volumes:
       - ./services/orchestrator:/app
-    environment: *minio-env
+    environment:
+      <<: [*minio-env, *redis-env]
     working_dir: /app
     command: >
       uvicorn orchestrator_runner:app
@@ -268,3 +293,4 @@ services:
 volumes:
   pgdata:
   miniodata:
+  redisdata:

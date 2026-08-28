@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Docker Engine with Docker Compose v2
-- Enough CPU, memory, and disk for Demucs, Whisper, PostgreSQL, MinIO, and a local Ollama model
+- Enough CPU, memory, and disk for Demucs, Whisper, PostgreSQL, Redis, MinIO, and a local Ollama model
 - An AcoustID API key for fingerprint lookups
 
 The repository does not define a host-native Python or Node startup workflow. Compose is the supported development entry point.
@@ -20,7 +20,7 @@ Use non-production credentials locally. The compose defaults are suitable only f
 docker compose --env-file .env up --build
 ```
 
-The development compose file exposes the frontend at `http://localhost:3000`, PostgreSQL on `127.0.0.1:5432`, MinIO on `127.0.0.1:9000`, its console at `http://127.0.0.1:9001`, the classifier on `127.0.0.1:8001`, and Ollama on `127.0.0.1:11434`. Other services are reachable only inside the Compose network.
+The development compose file exposes the frontend at `http://localhost:3000`, PostgreSQL on `127.0.0.1:5432`, Redis on `127.0.0.1:6379`, MinIO on `127.0.0.1:9000`, its console at `http://127.0.0.1:9001`, and Ollama on `127.0.0.1:11434`. Other services, including worker health endpoints, are reachable only inside the Compose network.
 
 On first use, make sure the configured Ollama model is available:
 
@@ -53,8 +53,7 @@ There is no repository-wide automated test command today. Changes to Python serv
 ## Change guide
 
 - Update a service and its `requirements.txt` together.
-- Keep service payloads and object-key conventions documented when changing an endpoint.
+- Keep Redis task/result payloads and object-key conventions documented when changing a stage.
 - If a database column changes, update `database/init.sql`, the orchestrator's insert/upsert code, and [data-model.md](data-model.md).
 - If a stage or flag changes, update frontend controls, worker claim logic, completion logic, and [architecture.md](architecture.md).
 - Do not add credentials, audio samples, model weights, or large datasets to the repository.
-

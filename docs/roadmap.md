@@ -15,7 +15,7 @@ Clankr should feel like a small analysis workspace rather than a form that opens
 | 2 | Add accounts, authentication, and ownership | High |
 | 3 | Rework orchestration for reliable processing | High |
 | 4 | Add metrics, health, and operational visibility | High |
-| 5 | Introduce Redis for queueing, caching, and events | High |
+| 5 | Harden Redis queueing, caching, and events | High |
 | 6 | Scale workers and control capacity | Later |
 | 7 | Complete the frontend redesign | Last |
 | 8 | Stress test, tune, and document results | Final |
@@ -91,7 +91,7 @@ Definition of done: the team can establish a baseline for normal load and identi
 
 ## Phase 5 — Redis-backed queue, cache, and events
 
-Introduce Redis after the job model and reliability rules are stable. Redis should accelerate dispatch and live updates without becoming the authoritative record of job state.
+The initial Redis Streams transport is now in place for stage dispatch and result events. Complete the reliability and observability work below without making Redis the authoritative record of job state.
 
 - Choose Redis Streams or a maintained task-queue library based on acknowledgement, visibility timeout, retry, and consumer-group needs.
 - Keep PostgreSQL as the source of truth; Redis contains dispatchable stage tasks, transient cache entries, and optionally live event streams.
@@ -168,7 +168,7 @@ The first implementation milestone should be **Data and orchestration foundation
 5. Add structured metrics and dependency health endpoints.
 6. Establish a repeatable baseline load test.
 
-After that milestone, implement accounts and ownership, introduce Redis, scale the measured bottlenecks, complete the frontend against the stabilized contracts, and then run the full end-to-end stress-test plan.
+After that milestone, implement accounts and ownership, harden the Redis transport, scale the measured bottlenecks, complete the frontend against the stabilized contracts, and then run the full end-to-end stress-test plan.
 
 ## Decisions to make early
 
