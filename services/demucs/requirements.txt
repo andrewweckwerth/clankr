@@ -4,3 +4,4 @@ soundfile
 demucs
 python-multipart
 minio
+redis>=5.0,<6

@@ -1,7 +1,6 @@
 fastapi
 uvicorn
-requests
 python-multipart
 asyncpg
-httpx
 minio
+redis>=5.0,<6
