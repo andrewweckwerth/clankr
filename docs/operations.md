@@ -4,7 +4,7 @@
 
 `docker-compose.prod.yml` runs the application from images pulled from GHCR. Traefik is the public edge and routes HTTPS traffic to the frontend. The frontend and Traefik join a `web` network; application services use the default internal network. PostgreSQL and MinIO data live in named Docker volumes.
 
-The production VM needs Docker Compose v2, DNS pointing the application host at the VM, and private environment values supplied outside the repository. Database, MinIO, Ollama, and worker APIs should not be internet-facing.
+The production VM needs Docker Compose v2, DNS pointing the application host at the VM, and private environment values supplied outside the repository. Database, Redis, MinIO, Ollama, and worker APIs should not be internet-facing. Redis is used for a rebuildable fingerprint lookup cache, not as the authoritative song store.
 
 ## Deployment flow
 
@@ -26,7 +26,7 @@ The checked-in `.env` file must be treated as sensitive configuration. Remove re
 
 ## Backups
 
-Back up both logical PostgreSQL data and MinIO objects. A PostgreSQL dump alone does not restore uploaded audio or stems, and a Docker volume alone is not an off-host backup. Store encrypted copies outside the VM and periodically test a restore.
+Back up both logical PostgreSQL data and MinIO objects. A PostgreSQL dump alone does not restore uploaded audio or stems, and a Docker volume alone is not an off-host backup. Redis cache data does not need an independent backup because it is repopulated from PostgreSQL. Store encrypted copies outside the VM and periodically test a restore.
 
 Before schema changes, capture a database dump and record the exact application commit. Because the project currently uses an initialization SQL file rather than migrations, upgrades to existing databases require an explicit, reviewed SQL migration plan.
 
@@ -52,4 +52,3 @@ If a job is stuck, inspect the job row and orchestrator logs first. A `Failed` j
 - Model downloads are external runtime state.
 - Health checks confirm process availability, not end-to-end pipeline health.
 - Production uses floating third-party image tags for some infrastructure services; pin and review those tags when reproducibility matters.
-

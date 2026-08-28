@@ -31,7 +31,7 @@ Browser → Next.js → Orchestrator → Acousti → Demucs → Whisper → Clas
 The supported local workflow uses Docker Compose:
 
 ```bash
-docker compose --env-file .env up --build
+docker compose -f docker-compose.dev.yml --env-file .env up --build
 ```
 
 Then open [http://localhost:3000](http://localhost:3000). The classifier also requires the configured Ollama model to be available in the Ollama container.

@@ -5,13 +5,33 @@ x-logging: &default-logging
     max-file: "5"
 
 x-minio-env: &minio-env
-  MINIO_ENDPOINT: minio:9000
-  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-clankr}
-  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-change-me}
-  MINIO_BUCKET: ${MINIO_BUCKET:-clankr-audio}
-  MINIO_SECURE: "false"
+  MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+  MINIO_BUCKET: ${MINIO_BUCKET}
+  MINIO_SECURE: ${MINIO_SECURE}
+
+x-redis-env: &redis-env
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+  SONG_CACHE_TTL_SECONDS: ${SONG_CACHE_TTL_SECONDS:-86400}
 
 services:
+
+
+  redis:
+    logging: *default-logging
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redisdata:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
 
   db:
@@ -150,8 +170,8 @@ services:
     image: minio/minio:latest
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-clankr}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-change-me}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
@@ -170,9 +190,9 @@ services:
       minio:
         condition: service_healthy
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-clankr}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-change-me}
-      MINIO_BUCKET: ${MINIO_BUCKET:-clankr-audio}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
@@ -239,6 +259,8 @@ services:
         condition: service_completed_successfully
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       demucs:
         condition: service_healthy
       whisper:
@@ -249,7 +271,8 @@ services:
         condition: service_healthy
     volumes:
       - ./services/orchestrator:/app
-    environment: *minio-env
+    environment:
+      <<: [*minio-env, *redis-env]
     working_dir: /app
     command: >
       uvicorn orchestrator_runner:app
@@ -268,3 +291,4 @@ services:
 volumes:
   pgdata:
   miniodata:
+  redisdata:
