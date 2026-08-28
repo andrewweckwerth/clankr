@@ -13,18 +13,31 @@
 
 `fingerprint_hash` has a unique constraint and is an indexable natural key. The orchestrator computes it from the Chromaprint fingerprint string.
 
+The orchestrator also maintains a best-effort Redis read-through cache using keys in the form `clankr:cache:song:fingerprint:<fingerprint_hash>`. The value is only the PostgreSQL `song_id`; PostgreSQL remains the source of truth. Cache misses, evictions, and Redis outages fall back to the fingerprint lookup in `songs`.
+
 ## `jobs`
 
-`jobs` is the work and progress table. It contains a copy of the fields needed to carry an in-flight request plus four pairs of flags:
+`jobs` is the parent record for one analysis request. It contains the request's accumulated data, the overall lifecycle state, and the resulting `song_id` when processing finishes. It does not contain one column per processing stage.
+
+## `job_steps`
+
+`job_steps` contains one row for each requested stage in a job. Its `id` is the `job_step_id` used to correlate a queue task, worker execution, and result. `position` preserves the canonical pipeline order.
 
 ```text
-want_identify / done_identify
-want_demucs   / done_demucs
-want_whisper  / done_whisper
-want_classify / done_classify
+id, job_id, stage, position, status, attempts,
+result, error, queued_at, started_at, completed_at
 ```
 
-The `status` column is used by the worker claim query. Typical values are `Not Started`, `Claimed`, `In Progress`, `Completed`, and `Failed`. `current_stage` records the stage currently being attempted.
+The valid step states are `queued`, `processing`, `completed`, `failed`, and `cancelled`. The job's overall `status` uses the same vocabulary. `current_stage` is retained as a convenient summary for the UI; the step rows are the source of truth for per-stage state.
+
+For example:
+
+```text
+jobs:      id=42, status=processing, current_stage=demucs
+job_steps: id=101, job_id=42, stage=identify, status=completed
+           id=102, job_id=42, stage=demucs,   status=processing
+           id=103, job_id=42, stage=whisper,  status=queued
+```
 
 Completion checks only the requested stages, so a request can intentionally stop after identification, transcription, or classification.
 
@@ -42,13 +55,13 @@ The database stores the object key in `file_path`. It does not store a public UR
 
 ## Completion and reuse
 
-When the requested flags are all complete, the orchestrator writes a song using the job's accumulated fields. Existing rows with the same fingerprint hash are updated rather than duplicated. Search uses PostgreSQL trigram similarity over title and artist and accepts the best match when its score is at least `0.3`.
+When every `job_steps` row is complete, the orchestrator writes a song using the job's accumulated fields and sets `jobs.song_id`. Existing rows with the same fingerprint hash are updated rather than duplicated. Search uses PostgreSQL trigram similarity over title and artist and accepts the best match when its score is at least `0.3`.
 
 ## Schema limitations
 
 - `updated_at` is declared but no trigger currently updates it.
-- Status and stage values are free-form text rather than database enums.
+- Status and stage values use database checks rather than PostgreSQL enums so the initialization schema stays easy to revise during prerelease.
 - `jobs` duplicates many `songs` columns to make stage-by-stage updates simple.
+- `job_steps.result` is flexible JSONB because stages produce different shapes of output.
 - `database/init.sql` uses `CREATE TABLE IF NOT EXISTS`; changing an existing database requires an explicit migration or controlled rebuild.
 - Deleting database rows does not automatically delete MinIO objects.
-

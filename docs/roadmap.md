@@ -15,7 +15,7 @@ Clankr should feel like a small analysis workspace rather than a form that opens
 | 2 | Add accounts, authentication, and ownership | High |
 | 3 | Rework orchestration for reliable processing | High |
 | 4 | Add metrics, health, and operational visibility | High |
-| 5 | Introduce Redis for queueing, caching, and events | High |
+| 5 | Harden Redis queueing, caching, and events | High |
 | 6 | Scale workers and control capacity | Later |
 | 7 | Complete the frontend redesign | Last |
 | 8 | Stress test, tune, and document results | Final |
@@ -25,7 +25,7 @@ Clankr should feel like a small analysis workspace rather than a form that opens
 Before major feature work, establish a stable vocabulary and contract.
 
 - Define canonical job states: `queued`, `running`, `retrying`, `completed`, `failed`, and `cancelled`.
-- Replace the current mixture of free-form status strings and stage flags with an explicit state transition model. Keep the existing `raw/`, `preprocessed/`, and `stems/` object-key contracts.
+- Keep the explicit `jobs`/`job_steps` state model and canonical status vocabulary. Preserve the existing `raw/`, `preprocessed/`, and `stems/` object-key contracts.
 - Add versioned database migrations; `database/init.sql` is currently initialization-only.
 - Define an API error shape, request IDs, upload limits, supported file types, and retention rules.
 - Add a small test harness for job transitions, stage selection, failed stages, text-only jobs, deduplication, and future authorization boundaries.
@@ -37,9 +37,9 @@ Definition of done: the API and UI use the same job vocabulary, state transition
 Accounts and ownership can remain a future product feature, but the database should not block them or force a second major redesign later.
 
 - Add versioned database migrations and stop treating `database/init.sql` as the upgrade mechanism.
-- Normalize job lifecycle data: canonical status/stage values, timestamps, attempt counts, lease/heartbeat fields, error details, and cancellation state.
+- Add leases, heartbeats, and cancellation handling to the existing `job_steps` lifecycle data.
 - Add a future-ready `users`/identity shape and nullable ownership columns or a clear ownership join model for jobs, songs, and stored objects. Do not expose login yet unless it is part of the current product scope.
-- Add stage-attempt/history records rather than overwriting all operational detail on the job row.
+- Add separate stage-attempt/history records only if one logical step needs multiple retained attempts; `job_steps` already records its current attempt count and result.
 - Add indexes for queue claims, status, creation time, owner lookup, and deduplication.
 - Decide how MinIO object ownership, retention, deletion, and orphan cleanup relate to database records.
 - Preserve the existing `raw/`, `preprocessed/`, and `stems/` object-key contracts while the schema evolves.
@@ -91,7 +91,7 @@ Definition of done: the team can establish a baseline for normal load and identi
 
 ## Phase 5 — Redis-backed queue, cache, and events
 
-Introduce Redis after the job model and reliability rules are stable. Redis should accelerate dispatch and live updates without becoming the authoritative record of job state.
+The initial Redis Streams transport is now in place for stage dispatch and result events. Complete the reliability and observability work below without making Redis the authoritative record of job state.
 
 - Choose Redis Streams or a maintained task-queue library based on acknowledgement, visibility timeout, retry, and consumer-group needs.
 - Keep PostgreSQL as the source of truth; Redis contains dispatchable stage tasks, transient cache entries, and optionally live event streams.
@@ -168,7 +168,7 @@ The first implementation milestone should be **Data and orchestration foundation
 5. Add structured metrics and dependency health endpoints.
 6. Establish a repeatable baseline load test.
 
-After that milestone, implement accounts and ownership, introduce Redis, scale the measured bottlenecks, complete the frontend against the stabilized contracts, and then run the full end-to-end stress-test plan.
+After that milestone, implement accounts and ownership, harden the Redis transport, scale the measured bottlenecks, complete the frontend against the stabilized contracts, and then run the full end-to-end stress-test plan.
 
 ## Decisions to make early
 

@@ -38,7 +38,7 @@ export default function JobModal({ jobModalOpen, setJobModalOpen, jobId, handleC
         const key = (data.current_stage ?? '').toLowerCase();
         setStageText(STAGE_VERBS[key] ?? (key || '—'));
         setStatus(data.status ?? '—');
-        if (data.status == "Completed"){
+        if ((data.status ?? '').trim().toLowerCase() === 'completed'){
             console.log("switching to song view")
             
             handleCompleted(data.song_id);
@@ -90,7 +90,7 @@ export default function JobModal({ jobModalOpen, setJobModalOpen, jobId, handleC
           </div>
           <div>
             <span className="font-semibold text-gray-700">Status: </span>
-            <span>{(status ?? '—').trim().toLowerCase() === 'claimed' ? 'working' : status ?? '—'}</span>
+            <span>{['processing', 'claimed'].includes((status ?? '').trim().toLowerCase()) ? 'working' : status ?? '—'}</span>
 
           </div>
         </div>
