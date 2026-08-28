@@ -18,7 +18,7 @@ Browser → Next.js → Orchestrator → Acousti → Demucs → Whisper → Clas
 ## Repository
 
 - `services/frontend` — Next.js user interface
-- `services/orchestrator` — API, job workers, and persistence
+- `services/orchestrator` — API, queue coordination, and persistence
 - `services/acousti` — FFmpeg, Chromaprint, and AcoustID integration
 - `services/demucs` — vocal isolation
 - `services/whisper` — transcription
@@ -31,7 +31,7 @@ Browser → Next.js → Orchestrator → Acousti → Demucs → Whisper → Clas
 The supported local workflow uses Docker Compose:
 
 ```bash
-docker compose --env-file .env up --build
+docker compose -f docker-compose.dev.yml --env-file .env up --build
 ```
 
 Then open [http://localhost:3000](http://localhost:3000). The classifier also requires the configured Ollama model to be available in the Ollama container.
@@ -40,4 +40,4 @@ See the [documentation index](docs/README.md) for the system design and local de
 
 ## Project status
 
-This is an active engineering project. The current implementation uses PostgreSQL polling instead of a dedicated queue, has no automated test suite, and treats the classifier as a probabilistic signal rather than proof of authorship. Those tradeoffs are documented alongside the architecture.
+This is an active engineering project. The current implementation uses Redis Streams for stage queues, has no automated test suite, and treats the classifier as a probabilistic signal rather than proof of authorship. Those tradeoffs are documented alongside the architecture.

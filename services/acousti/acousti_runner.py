@@ -1,26 +1,35 @@
-# acoustid-api/main.py
-import os
-import subprocess
-from fastapi import FastAPI, UploadFile, Form, File
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-import requests
-from pathlib import Path
-import tempfile
-from minio import Minio
-
+import asyncio
+import json
 import logging
+import os
+import socket
+import subprocess
+import tempfile
+import uuid
+from contextlib import asynccontextmanager
+from pathlib import Path
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)-9s %(message)s",
-)
+import requests
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from minio import Minio
+from redis.asyncio import Redis
+from redis.exceptions import ResponseError
+
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)-9s %(message)s")
 logger = logging.getLogger("acousti")
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "clankr")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "change-me")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "clankr-audio")
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+REDIS_STREAM = os.getenv("REDIS_IDENTIFY_STREAM", "clankr:queue:identify")
+REDIS_GROUP = os.getenv("REDIS_IDENTIFY_GROUP", "acousti")
+REDIS_RESULT_STREAM = os.getenv("REDIS_RESULT_STREAM", "clankr:events:results")
+REDIS_VISIBILITY_TIMEOUT_MS = int(os.getenv("REDIS_VISIBILITY_TIMEOUT_MS", "3600000"))
+
 minio_client = Minio(
     MINIO_ENDPOINT,
     access_key=MINIO_ACCESS_KEY,
@@ -45,26 +54,14 @@ def upload_object(path: str, object_key: str, content_type: str) -> str:
     minio_client.fput_object(MINIO_BUCKET, object_key, path, content_type=content_type)
     return object_key
 
-app = FastAPI()
 
-# Optional: Allow frontend calls during local dev
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-def run_fpcalc(file_path):
+def run_fpcalc(file_path: str):
     result = subprocess.run(["fpcalc", file_path], capture_output=True, text=True)
-
     if "FINGERPRINT=" not in result.stdout or "DURATION=" not in result.stdout:
         raise RuntimeError(f"fpcalc failed: {result.stderr}")
 
     fingerprint = None
     duration = None
-
     for line in result.stdout.splitlines():
         if line.startswith("FINGERPRINT="):
             fingerprint = line.split("=", 1)[1]
@@ -73,95 +70,59 @@ def run_fpcalc(file_path):
 
     if not fingerprint or not duration:
         raise RuntimeError("Missing fingerprint or duration")
-
     return fingerprint, duration
 
 
 def lookup_acoustid(fingerprint, duration, api_key):
-    url = "https://api.acoustid.org/v2/lookup"
-    payload = {
-        "client": api_key,
-        "format": "json",
-        "fingerprint": fingerprint,
-        "duration": duration,
-        "meta": "recordings"
-    }
-
-    response = requests.post(url, data=payload)
+    response = requests.post(
+        "https://api.acoustid.org/v2/lookup",
+        data={
+            "client": api_key,
+            "format": "json",
+            "fingerprint": fingerprint,
+            "duration": duration,
+            "meta": "recordings",
+        },
+    )
     if response.status_code != 200:
         raise RuntimeError(f"AcoustID error: {response.text}")
-
     return response.json()
 
-async def convert_audio(object_key: str) -> str:
-    """
-    Convert an uploaded audio file to WAV using ffmpeg.
-    Returns the path of the converted WAV file.
-    Raises subprocess.CalledProcessError on failure.
-    """
+
+def convert_audio(object_key: str) -> str:
     suffix = Path(object_key).suffix
     input_path = download_object(object_key, suffix=suffix)
     base = os.path.splitext(os.path.basename(object_key))[0]
     output_path = tempfile.mktemp(prefix="clankr-", suffix=".wav")
-
     try:
         subprocess.run(
             [
                 "ffmpeg", "-y", "-i", input_path,
-                "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2",
-                output_path
+                "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", output_path,
             ],
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
         output_key = f"preprocessed/{base}.wav"
-        upload_object(output_path, output_key, "audio/wav")
-        return output_key
-    except subprocess.CalledProcessError as e:
-        if os.path.exists(input_path):
-            os.remove(input_path)
-        raise RuntimeError(
-            f"FFmpeg failed (stdout={e.stdout}, stderr={e.stderr})"
-        )
+        return upload_object(output_path, output_key, "audio/wav")
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"FFmpeg failed: {exc.stderr}") from exc
     finally:
         for path in (input_path, output_path):
             if os.path.exists(path):
                 os.remove(path)
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
 
+def identify_audio(file_path: str) -> dict:
+    api_key = os.getenv("ACOUSTID_API_KEY")
+    if not api_key:
+        raise RuntimeError("Missing ACOUSTID_API_KEY env var")
 
-@app.post("/convert")
-async def convert(file_path: str = Form(...)):
-    logger.info("🟦Converting")
+    local_path = download_object(file_path, suffix=Path(file_path).suffix)
     try:
-        wav_path = await convert_audio(file_path)
-        logger.info("🟦Converted Successfully")
-        return JSONResponse({"file_path": wav_path})
-    except RuntimeError as e:
-        logger.info((e))
-        logger.error(e)
-        return JSONResponse({"error": str(e)}, status_code=500)
-      
-
-
-@app.post("/identify")
-async def identify(file_path: str = Form(...)):
-    local_path = None
-    try:
-        logger.info("🟦Identifying")
-        
-        api_key = os.getenv("ACOUSTID_API_KEY")
-        if not api_key:
-            raise RuntimeError("Missing ACOUSTID_API_KEY env var")
-
-        local_path = download_object(file_path, suffix=Path(file_path).suffix)
         fingerprint, duration = run_fpcalc(local_path)
         raw_result = lookup_acoustid(fingerprint, duration, api_key)
-
         matches = []
         for result in raw_result.get("results", []):
             for recording in result.get("recordings", []):
@@ -170,16 +131,112 @@ async def identify(file_path: str = Form(...)):
                 if recording.get("artists"):
                     artist = recording["artists"][0].get("name", "Unknown")
                 matches.append({"title": title, "artist": artist})
-        
-        logger.info("🟦Identified Successfully")
-        return JSONResponse({
-            "fingerprint": fingerprint,
-            "duration": duration,
-            "matches": matches
-        })
-
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return {"file_path": file_path, "fingerprint": fingerprint, "duration": duration, "matches": matches}
     finally:
-        if local_path and os.path.exists(local_path):
+        if os.path.exists(local_path):
             os.remove(local_path)
+
+
+async def process_task(task: dict) -> dict:
+    if task.get("stage") != "identify":
+        raise ValueError(f"Acousti cannot process stage {task.get('stage')}")
+    if not task.get("file_path"):
+        raise ValueError("Identify task is missing file_path")
+    preprocessed_path = await asyncio.to_thread(convert_audio, task["file_path"])
+    return await asyncio.to_thread(identify_audio, preprocessed_path)
+
+
+async def ensure_group(redis: Redis) -> None:
+    try:
+        await redis.xgroup_create(REDIS_STREAM, REDIS_GROUP, id="0-0", mkstream=True)
+    except ResponseError as exc:
+        if "BUSYGROUP" not in str(exc):
+            raise
+
+
+async def next_message(redis: Redis, consumer: str):
+    claimed = await redis.xautoclaim(
+        REDIS_STREAM,
+        REDIS_GROUP,
+        consumer,
+        min_idle_time=REDIS_VISIBILITY_TIMEOUT_MS,
+        start_id="0-0",
+        count=1,
+    )
+    if len(claimed) > 1 and claimed[1]:
+        return claimed[1][0]
+
+    batches = await redis.xreadgroup(
+        REDIS_GROUP,
+        consumer,
+        {REDIS_STREAM: ">"},
+        count=1,
+        block=5000,
+    )
+    return batches[0][1][0] if batches and batches[0][1] else None
+
+
+async def publish_event(redis: Redis, event: dict) -> None:
+    await redis.xadd(
+        REDIS_RESULT_STREAM,
+        {"payload": json.dumps(event, separators=(",", ":"))},
+        maxlen=10000,
+        approximate=True,
+    )
+
+
+async def worker_loop(redis: Redis, stop: asyncio.Event) -> None:
+    consumer = f"acousti-{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
+    logger.info("Redis worker starting: %s", consumer)
+    while not stop.is_set():
+        message = await next_message(redis, consumer)
+        if not message:
+            continue
+        message_id, fields = message
+        task = json.loads(fields["payload"])
+        base_event = {
+            "task_id": task["task_id"],
+            "job_id": task["job_id"],
+            "stage": "identify",
+        }
+        try:
+            await publish_event(redis, {**base_event, "event": "started"})
+            result = await process_task(task)
+            await publish_event(redis, {**base_event, "event": "completed", "ok": True, "result": result})
+        except Exception as exc:
+            logger.exception("Identify task %s failed", task.get("task_id"))
+            await publish_event(
+                redis,
+                {**base_event, "event": "completed", "ok": False, "error": str(exc), "result": {}},
+            )
+        await redis.xack(REDIS_STREAM, REDIS_GROUP, message_id)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.redis = Redis.from_url(REDIS_URL, decode_responses=True)
+    await app.state.redis.ping()
+    await ensure_group(app.state.redis)
+    app.state.stop_event = asyncio.Event()
+    app.state.worker_task = asyncio.create_task(worker_loop(app.state.redis, app.state.stop_event))
+    try:
+        yield
+    finally:
+        app.state.stop_event.set()
+        app.state.worker_task.cancel()
+        await asyncio.gather(app.state.worker_task, return_exceptions=True)
+        await app.state.redis.aclose()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/health")
+async def health():
+    try:
+        await app.state.redis.ping()
+        if app.state.worker_task.done():
+            raise RuntimeError("Redis worker is not running")
+        return {"status": "ok", "redis": "ok"}
+    except Exception as exc:
+        return JSONResponse(status_code=503, content={"status": "unavailable", "error": str(exc)})
