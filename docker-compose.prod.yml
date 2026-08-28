@@ -2,14 +2,15 @@ networks:
   web: {}   # public edge; only traefik + frontend join this
 
 x-minio-env: &minio-env
-  MINIO_ENDPOINT: minio:9000
-  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-clankr}
-  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-change-me}
-  MINIO_BUCKET: ${MINIO_BUCKET:-clankr-audio}
-  MINIO_SECURE: "false"
+  MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+  MINIO_BUCKET: ${MINIO_BUCKET}
+  MINIO_SECURE: ${MINIO_SECURE}
 
 x-redis-env: &redis-env
   REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+  SONG_CACHE_TTL_SECONDS: ${SONG_CACHE_TTL_SECONDS:-86400}
   REDIS_RESULT_STREAM: ${REDIS_RESULT_STREAM:-clankr:events:results}
   REDIS_VISIBILITY_TIMEOUT_MS: ${REDIS_VISIBILITY_TIMEOUT_MS:-3600000}
 
@@ -20,6 +21,21 @@ x-logging: &default-logging
     max-file: "5"
 
 services:
+  redis:
+    logging: *default-logging
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redisdata:/data
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   traefik:
     logging: *default-logging
     image: traefik:v3.7.1
@@ -105,27 +121,12 @@ services:
       retries: 5
       start_period: 20s
 
-  redis:
-    logging: *default-logging
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
-    volumes:
-      - redisdata:/data
-    expose:
-      - "6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
   minio:
     image: minio/minio:latest
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-clankr}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-change-me}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
@@ -144,9 +145,9 @@ services:
       minio:
         condition: service_healthy
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-clankr}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-change-me}
-      MINIO_BUCKET: ${MINIO_BUCKET:-clankr-audio}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-

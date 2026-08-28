@@ -25,7 +25,7 @@ Clankr should feel like a small analysis workspace rather than a form that opens
 Before major feature work, establish a stable vocabulary and contract.
 
 - Define canonical job states: `queued`, `running`, `retrying`, `completed`, `failed`, and `cancelled`.
-- Replace the current mixture of free-form status strings and stage flags with an explicit state transition model. Keep the existing `raw/`, `preprocessed/`, and `stems/` object-key contracts.
+- Keep the explicit `jobs`/`job_steps` state model and canonical status vocabulary. Preserve the existing `raw/`, `preprocessed/`, and `stems/` object-key contracts.
 - Add versioned database migrations; `database/init.sql` is currently initialization-only.
 - Define an API error shape, request IDs, upload limits, supported file types, and retention rules.
 - Add a small test harness for job transitions, stage selection, failed stages, text-only jobs, deduplication, and future authorization boundaries.
@@ -37,9 +37,9 @@ Definition of done: the API and UI use the same job vocabulary, state transition
 Accounts and ownership can remain a future product feature, but the database should not block them or force a second major redesign later.
 
 - Add versioned database migrations and stop treating `database/init.sql` as the upgrade mechanism.
-- Normalize job lifecycle data: canonical status/stage values, timestamps, attempt counts, lease/heartbeat fields, error details, and cancellation state.
+- Add leases, heartbeats, and cancellation handling to the existing `job_steps` lifecycle data.
 - Add a future-ready `users`/identity shape and nullable ownership columns or a clear ownership join model for jobs, songs, and stored objects. Do not expose login yet unless it is part of the current product scope.
-- Add stage-attempt/history records rather than overwriting all operational detail on the job row.
+- Add separate stage-attempt/history records only if one logical step needs multiple retained attempts; `job_steps` already records its current attempt count and result.
 - Add indexes for queue claims, status, creation time, owner lookup, and deduplication.
 - Decide how MinIO object ownership, retention, deletion, and orphan cleanup relate to database records.
 - Preserve the existing `raw/`, `preprocessed/`, and `stems/` object-key contracts while the schema evolves.

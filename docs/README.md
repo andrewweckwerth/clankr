@@ -16,7 +16,7 @@ This documentation describes the implementation currently present in the reposit
 
 ```text
 database/init.sql                  PostgreSQL schema
-docker-compose.yml                 local development stack
+docker-compose.dev.yml             local development stack
 docker-compose.prod.yml            production stack
 services/frontend/                 Next.js web application
 services/orchestrator/             FastAPI API, Redis queue coordinator, and persistence
