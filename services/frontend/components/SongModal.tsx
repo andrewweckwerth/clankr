@@ -1,5 +1,6 @@
 'use client';
 
+import { useApiFetch } from '@/lib/api';
 import { useEffect, useState } from 'react';
 
 interface SongResult {
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export default function SongModal({ onClose, selected }: Props) {
+    const apiFetch = useApiFetch();
 
     const [data, setData] = useState<SongResult | null>(null)
     useEffect(() => {
@@ -38,19 +40,19 @@ export default function SongModal({ onClose, selected }: Props) {
     (async () => {
       try {
         
-        const res = await fetch(`/api/songs/${(selected)}`, {
+        const res = await apiFetch(`/api/songs/${(selected)}`, {
           headers: { Accept: 'application/json' },
           signal: ctrl.signal,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json: SongResult = await res.json();
         setData(json);
-      } catch (e: any) {
+      } catch {
       }
     })();
 
     return () => ctrl.abort(); // cancel if modal closes or id changes
-  }, [selected]);
+  }, [apiFetch, selected]);
 
     if (selected == null) return null;
     if (data==null) return null;

@@ -1,5 +1,6 @@
 import os
 from contextlib import asynccontextmanager
+from datetime import date
 from typing import Any, Dict, Optional, Sequence
 
 import asyncpg
@@ -18,6 +19,7 @@ async def lifespan(app):
 async def create_job(
     conn: asyncpg.Connection,
     *,
+    user_id: int,
     stages: Sequence[str],
     song_id: Optional[int] = None,
     input_type: Optional[str] = None,
@@ -40,17 +42,18 @@ async def create_job(
         job_id = await conn.fetchval(
             """
             INSERT INTO jobs (
-              song_id, current_stage, status, input_type,
+              user_id, song_id, current_stage, status, input_type,
               title, artist, lyrics, classification, accuracy,
               file_path, duration, fingerprint, fingerprint_hash,
               audio_processed
             ) VALUES (
-              $1, $2, 'queued', $3,
-              $4, $5, $6, $7, $8,
-              $9, $10, $11, $12, $13
+              $1, $2, $3, 'queued', $4,
+              $5, $6, $7, $8, $9,
+              $10, $11, $12, $13, $14
             )
             RETURNING id;
             """,
+            user_id,
             song_id,
             stages[0],
             input_type,
@@ -118,15 +121,17 @@ async def update_job(conn: asyncpg.Connection, job_id: int, **fields: Any) -> No
     )
 
 
-async def get_job(pool, job_id: int) -> Optional[Dict[str, Any]]:
+async def get_job_with_steps_for_user(
+    pool,
+    job_id: int,
+    user_id: int,
+) -> Optional[Dict[str, Any]]:
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
-        return dict(row) if row else None
-
-
-async def get_job_with_steps(pool, job_id: int) -> Optional[Dict[str, Any]]:
-    async with pool.acquire() as conn:
-        job = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
+        job = await conn.fetchrow(
+            "SELECT * FROM jobs WHERE id = $1 AND user_id = $2",
+            job_id,
+            user_id,
+        )
         if not job:
             return None
         steps = await conn.fetch(
@@ -142,6 +147,76 @@ async def get_job_with_steps(pool, job_id: int) -> Optional[Dict[str, Any]]:
         result = dict(job)
         result["steps"] = [dict(step) for step in steps]
         return result
+
+
+async def upsert_user(
+    pool,
+    *,
+    auth_user_id: str,
+    email: Optional[str] = None,
+    display_name: Optional[str] = None,
+    image_url: Optional[str] = None,
+) -> Dict[str, Any]:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO users (auth_user_id, email, display_name, image_url)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (auth_user_id) DO UPDATE SET
+              email = COALESCE(EXCLUDED.email, users.email),
+              display_name = COALESCE(EXCLUDED.display_name, users.display_name),
+              image_url = COALESCE(EXCLUDED.image_url, users.image_url),
+              updated_at = CURRENT_TIMESTAMP
+            RETURNING id, auth_user_id, email, display_name, image_url;
+            """,
+            auth_user_id,
+            email,
+            display_name,
+            image_url,
+        )
+    return dict(row)
+
+
+async def record_user_song(
+    conn: asyncpg.Connection,
+    *,
+    user_id: int,
+    song_id: int,
+) -> None:
+    await conn.execute(
+        """
+        INSERT INTO user_songs (user_id, song_id)
+        VALUES ($1, $2)
+        ON CONFLICT (user_id, song_id) DO UPDATE SET
+          last_submitted_at = CURRENT_TIMESTAMP,
+          submission_count = user_songs.submission_count + 1
+        """,
+        user_id,
+        song_id,
+    )
+
+
+async def consume_daily_analysis(
+    conn: asyncpg.Connection,
+    *,
+    user_id: int,
+    usage_date: date,
+    limit: int,
+) -> Optional[int]:
+    """Atomically consume one analysis from a user's daily quota."""
+    return await conn.fetchval(
+        """
+        INSERT INTO user_daily_usage (user_id, usage_date, analysis_count)
+        VALUES ($1, $2, 1)
+        ON CONFLICT (user_id, usage_date) DO UPDATE SET
+          analysis_count = user_daily_usage.analysis_count + 1
+        WHERE user_daily_usage.analysis_count < $3
+        RETURNING analysis_count;
+        """,
+        user_id,
+        usage_date,
+        limit,
+    )
 
 
 async def upsert_song(
@@ -219,7 +294,12 @@ async def get_song_by_title_artist(pool, title: str, artist: str) -> Optional[in
         return row["id"] if row else None
 
 
-async def search_song_fuzzy(pool, title: str, artist: str, limit: int = 5):
+async def search_song_fuzzy(
+    pool,
+    title: str,
+    artist: str,
+    limit: int = 5,
+):
     sql = """
     SELECT id, title, artist,
        similarity(LOWER(title), LOWER($1)) +

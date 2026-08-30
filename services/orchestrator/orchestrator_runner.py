@@ -3,17 +3,27 @@ import json
 import logging
 import traceback
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
 import asyncpg
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 
-from db import create_job, dsn, get_job_with_steps, search_song_fuzzy, update_job, upsert_song
+from auth import get_current_user
+from db import (
+    consume_daily_analysis,
+    create_job,
+    dsn,
+    get_job_with_steps_for_user,
+    record_user_song,
+    search_song_fuzzy,
+    update_job,
+    upsert_song,
+)
 from redis_cache import cache_song_id
 from redis_queue import REDIS_URL, RESULT_GROUP, RESULT_STREAM, STREAMS, enqueue_task, ensure_consumer_group, new_consumer_name, reclaim_one, task_for_job
 from utils import FRONTEND_ORIGIN, compute_fingerprint_hash, save_uploaded_file
@@ -22,6 +32,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)-9s %(message)s")
 logger = logging.getLogger("orchestrator")
 STAGE_ORDER = ("identify", "demucs", "whisper", "classify")
 OUTPUT_TO_STAGE = {"identify": "identify", "stems": "demucs", "lyrics": "whisper", "classification": "classify"}
+DAILY_ANALYSIS_LIMIT = 10
 
 
 @asynccontextmanager
@@ -106,6 +117,8 @@ async def handle_event(app: FastAPI, event: dict[str, Any]) -> None:
             else:
                 song_id = await upsert_song(conn, title=job["title"], artist=job["artist"], duration=job["duration"], fingerprint=job["fingerprint"], fingerprint_hash=job["fingerprint_hash"], lyrics=job["lyrics"], classification=job["classification"], accuracy=job["accuracy"], file_path=job["file_path"], audio_processed=job["audio_processed"])
                 await update_job(conn, job_id, status="completed", current_stage=None, song_id=song_id, completed_at=datetime.now(timezone.utc).replace(tzinfo=None), error=None)
+                if job["user_id"] is not None:
+                    await record_user_song(conn, user_id=job["user_id"], song_id=song_id)
                 await cache_song_id(redis, job["fingerprint_hash"], song_id)
     if next_task:
         await enqueue_task(redis, next_task)
@@ -137,21 +150,55 @@ async def health(request: Request):
 
 
 @app.get("/api/songs")
-async def list_songs(request: Request):
+async def list_songs(request: Request, user: dict = Depends(get_current_user)):
     try:
         async with request.app.state.db_pool.acquire() as conn:
-            rows = await conn.fetch("SELECT * FROM songs ORDER BY created_at DESC")
+            rows = await conn.fetch(
+                """
+                SELECT songs.*
+                FROM songs
+                ORDER BY songs.updated_at DESC NULLS LAST, songs.id DESC
+                """,
+            )
         return JSONResponse(status_code=200, content=jsonable_encoder([dict(row) for row in rows]))
     except Exception:
         logger.exception("Database error listing songs")
         return JSONResponse(status_code=500, content={"error": "Database error"})
 
 
-@app.get("/api/songs/{song_id}")
-async def get_song(request: Request, song_id: int):
+@app.get("/api/songs/mine")
+async def list_my_songs(request: Request, user: dict = Depends(get_current_user)):
     try:
         async with request.app.state.db_pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT * FROM songs WHERE id = $1", song_id)
+            rows = await conn.fetch(
+                """
+                SELECT songs.*, user_songs.first_submitted_at,
+                       user_songs.last_submitted_at, user_songs.submission_count
+                FROM songs
+                JOIN user_songs ON user_songs.song_id = songs.id
+                WHERE user_songs.user_id = $1
+                ORDER BY user_songs.last_submitted_at DESC, songs.id DESC
+                """,
+                user["id"],
+            )
+        return JSONResponse(status_code=200, content=jsonable_encoder([dict(row) for row in rows]))
+    except Exception:
+        logger.exception("Database error listing the user's songs")
+        return JSONResponse(status_code=500, content={"error": "Database error"})
+
+
+@app.get("/api/songs/{song_id}")
+async def get_song(request: Request, song_id: int, user: dict = Depends(get_current_user)):
+    try:
+        async with request.app.state.db_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT songs.*
+                FROM songs
+                WHERE songs.id = $1
+                """,
+                song_id,
+            )
         if not row:
             raise HTTPException(status_code=404, detail="Song not found")
         return JSONResponse(status_code=200, content=jsonable_encoder(dict(row)))
@@ -163,9 +210,9 @@ async def get_song(request: Request, song_id: int):
 
 
 @app.get("/api/jobs/{job_id}")
-async def get_job(request: Request, job_id: int):
+async def get_job(request: Request, job_id: int, user: dict = Depends(get_current_user)):
     try:
-        job = await get_job_with_steps(request.app.state.db_pool, job_id)
+        job = await get_job_with_steps_for_user(request.app.state.db_pool, job_id, user["id"])
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
         return JSONResponse(status_code=200, content=jsonable_encoder(job))
@@ -177,7 +224,16 @@ async def get_job(request: Request, job_id: int):
 
 
 @app.post("/api/analyze")
-async def analyze(request: Request, input_type: str = Form(...), audio: Optional[UploadFile] = File(None), outputs: List[str] = Form(...), title: str = Form(""), artist: str = Form(""), lyrics: str = Form("")):
+async def analyze(
+    request: Request,
+    input_type: str = Form(...),
+    audio: Optional[UploadFile] = File(None),
+    outputs: List[str] = Form(...),
+    title: str = Form(""),
+    artist: str = Form(""),
+    lyrics: str = Form(""),
+    user: dict = Depends(get_current_user),
+):
     try:
         db_pool = request.app.state.db_pool
         if input_type == "search":
@@ -200,12 +256,51 @@ async def analyze(request: Request, input_type: str = Form(...), audio: Optional
         stages = [stage for stage in STAGE_ORDER if stage in selected]
         if not stages:
             return {"success": False, "error": "At least one valid output is required"}
+
+        async with db_pool.acquire() as conn:
+            usage_count = await consume_daily_analysis(
+                conn,
+                user_id=user["id"],
+                usage_date=datetime.now(timezone.utc).date(),
+                limit=DAILY_ANALYSIS_LIMIT,
+            )
+        if usage_count is None:
+            reset_at = datetime.combine(
+                datetime.now(timezone.utc).date(),
+                datetime.min.time(),
+                tzinfo=timezone.utc,
+            )
+            reset_at += timedelta(days=1)
+            retry_after = max(1, int((reset_at - datetime.now(timezone.utc)).total_seconds()))
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "Daily analysis limit reached",
+                    "limit": DAILY_ANALYSIS_LIMIT,
+                    "reset_at": reset_at.isoformat(),
+                },
+                headers={
+                    "Retry-After": str(retry_after),
+                    "X-RateLimit-Limit": str(DAILY_ANALYSIS_LIMIT),
+                    "X-RateLimit-Remaining": "0",
+                },
+            )
+
         file_path = save_uploaded_file(audio) if input_type == "audio" else None
         async with db_pool.acquire() as conn:
-            job_id = await create_job(conn, stages=stages, title=title or "Untitled", artist=artist, lyrics=lyrics or None, input_type=input_type, file_path=file_path)
+            job_id = await create_job(conn, user_id=user["id"], stages=stages, title=title or "Untitled", artist=artist, lyrics=lyrics or None, input_type=input_type, file_path=file_path)
             job = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
         await enqueue_task(request.app.state.redis, task_for_job(dict(job), stages[0]))
-        return {"success": True, "job_id": job_id}
+        return {
+            "success": True,
+            "job_id": job_id,
+            "rate_limit": {
+                "limit": DAILY_ANALYSIS_LIMIT,
+                "remaining": DAILY_ANALYSIS_LIMIT - usage_count,
+            },
+        }
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("Unable to create analysis job")
         line = traceback.extract_tb(exc.__traceback__)[-1].lineno if exc.__traceback__ else "unknown"

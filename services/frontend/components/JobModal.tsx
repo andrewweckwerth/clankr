@@ -1,5 +1,6 @@
 'use client';
 
+import { useApiFetch } from '@/lib/api';
 import { useEffect, useRef, useState } from 'react';
 
 type Props = {
@@ -23,6 +24,7 @@ const STAGE_VERBS: Record<string, string> = {
 };
 
 export default function JobModal({ jobModalOpen, setJobModalOpen, jobId, handleCompleted }: Props) {
+  const apiFetch = useApiFetch();
   const [stageText, setStageText] = useState<string>('—');
   const [status, setStatus] = useState<string>('—');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -32,7 +34,7 @@ export default function JobModal({ jobModalOpen, setJobModalOpen, jobId, handleC
 
     const fetchOnce = async () => {
       try {
-        const res = await fetch(`/api/jobs/${jobId}`, { headers: { Accept: 'application/json' } });
+        const res = await apiFetch(`/api/jobs/${jobId}`, { headers: { Accept: 'application/json' } });
         if (!res.ok) return;
         const data: JobRow = await res.json();
         const key = (data.current_stage ?? '').toLowerCase();
@@ -58,13 +60,13 @@ export default function JobModal({ jobModalOpen, setJobModalOpen, jobId, handleC
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = null;
     };
-  }, [jobModalOpen, jobId]);
+  }, [apiFetch, handleCompleted, jobModalOpen, jobId]);
 
   if (!jobModalOpen || !jobId) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/5 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white/100 text-black rounded-lg shadow-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto p-5 relative border border-white/20 backdrop-blur-md">
+      <div className="bg-white text-black rounded-lg shadow-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto p-5 relative border border-white/20 backdrop-blur-md">
         {/* <button
           onClick={()=>setJobModalOpen(false)}
           className="absolute top-3 right-3 text-black text-2xl hover:opacity-70"

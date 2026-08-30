@@ -2,17 +2,11 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   //output: 'standalone',  
+  // Audio uploads pass through the Next.js proxy before reaching the orchestrator.
   experimental: {
     // ⛔ Disable Lightning CSS
     optimizeCss: false,
-  },
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://orchestrator:8000/api/:path*',
-      },
-    ];
+    proxyClientMaxBodySize: '100mb',
   },
 };
 

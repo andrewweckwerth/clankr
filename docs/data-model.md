@@ -1,8 +1,39 @@
 # Data model and pipeline state
 
+## Authentication and ownership
+
+Better Auth is the application identity layer. The `users.auth_user_id` value
+is the stable external identity; email addresses are profile data and are not
+used as ownership keys.
+
+Better Auth stores its identity records separately in `auth_users`,
+`auth_sessions`, `auth_accounts`, and `auth_verifications`. A Better Auth
+account can contain either the email/password credential or the linked Google
+provider. The app's `users` row is created or refreshed when an
+authenticated request reaches the orchestrator and maps the Better Auth user
+ID to the numeric application user ID.
+
+`jobs` stores one processing request and may be deleted by retention cleanup.
+`jobs.user_id` scopes active job access to its owner, while `jobs.song_id` points
+to the canonical song produced when processing completes.
+
+`user_songs` is the durable user-library relationship. It records which
+canonical songs a user has submitted, including the first and most recent
+submission times and the number of submissions. This relationship survives
+job cleanup. A canonical `songs` row may be shared by many users because
+`fingerprint_hash` deduplicates recordings globally. The all-songs catalog reads
+directly from `songs`; the user-specific catalog joins through `user_songs`.
+
+`user_daily_usage` atomically tracks the number of processing submissions made
+by each user on a UTC calendar date. The current limit is ten analyses per day;
+searches and read-only polling do not consume this quota.
+
 ## `songs`
 
-`songs` is the durable result table. It stores user-visible metadata and the latest completed analysis for a fingerprinted recording.
+`songs` is the durable result table. It stores user-visible metadata and the
+latest completed analysis for a fingerprinted recording. “Canonical” means
+that this is the one shared record representing a recording, identified by its
+fingerprint hash, rather than a separate copy for every user submission.
 
 | Column group | Fields | Purpose |
 | --- | --- | --- |
@@ -18,6 +49,10 @@ The orchestrator also maintains a best-effort Redis read-through cache using key
 ## `jobs`
 
 `jobs` is the parent record for one analysis request. It contains the request's accumulated data, the overall lifecycle state, and the resulting `song_id` when processing finishes. It does not contain one column per processing stage.
+
+`user_id` identifies the locally mapped authenticated user who submitted the request.
+Job and song endpoints must filter by this value rather than trusting the
+client-provided numeric ID.
 
 ## `job_steps`
 
@@ -62,6 +97,8 @@ When every `job_steps` row is complete, the orchestrator writes a song using the
 - `updated_at` is declared but no trigger currently updates it.
 - Status and stage values use database checks rather than PostgreSQL enums so the initialization schema stays easy to revise during prerelease.
 - `jobs` duplicates many `songs` columns to make stage-by-stage updates simple.
+- `jobs` is not the permanent user history; retention cleanup must preserve
+  `user_songs` if the user's library is to remain intact.
 - `job_steps.result` is flexible JSONB because stages produce different shapes of output.
 - `database/init.sql` uses `CREATE TABLE IF NOT EXISTS`; changing an existing database requires an explicit migration or controlled rebuild.
 - Deleting database rows does not automatically delete MinIO objects.
