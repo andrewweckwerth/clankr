@@ -10,7 +10,15 @@ The repository does not define a host-native Python or Node startup workflow. Co
 
 ## Configuration
 
-Create a private environment file and provide the values consumed by `docker-compose.dev.yml`. At minimum, configure PostgreSQL credentials, MinIO credentials, `FRONTEND_ORIGIN`, the AcoustID key, and classifier settings.
+Create a private environment file and provide the values consumed by `docker-compose.dev.yml`. At minimum, configure PostgreSQL credentials, MinIO credentials, `FRONTEND_ORIGIN`, the AcoustID key, classifier settings, and Better Auth:
+
+```dotenv
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_SECRET=replace-with-a-long-random-secret
+INTERNAL_AUTH_SECRET=replace-with-a-different-long-random-secret
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+```
 
 Use non-production credentials locally. The compose defaults are suitable only for a disposable development machine.
 
@@ -39,6 +47,33 @@ docker compose -f docker-compose.dev.yml down
 ```
 
 `docker compose down` preserves named volumes unless `--volumes` is supplied. Use the latter only when intentionally deleting local database and object-store data.
+
+## Google sign-in setup
+
+1. Create a Google OAuth web client in Google Cloud.
+2. Add `http://localhost:3000/api/auth/callback/google` as a development
+   redirect URI.
+3. Put the client ID and secret in `GOOGLE_CLIENT_ID` and
+   `GOOGLE_CLIENT_SECRET`.
+4. Run the stack and use **Continue with Google** at `http://localhost:3000/sign-in`.
+5. Add the production callback URI for `https://clankr.app` before deployment.
+
+Email/password accounts do not require an email service for sign-up or login.
+Password recovery and email verification are intentionally not enabled yet, so
+a user who loses their password must already have linked Google or be reset
+manually during this preproduction phase. Passwords are stored by Better Auth,
+not in application tables.
+
+`INTERNAL_AUTH_SECRET` must be the same long random value in the frontend and
+orchestrator environments. Next.js validates the Better Auth session and uses
+this secret to sign a short-lived identity assertion for the internal API
+request. The orchestrator rejects requests without a valid assertion.
+
+The prerelease database is expected to be rebuilt when the authentication
+schema changes. The initialization SQL is not a migration runner. Better Auth
+uses the `auth_users`, `auth_sessions`, `auth_accounts`, and
+`auth_verifications` tables; the application `users` table remains the local
+ownership mapping used by jobs and songs.
 
 ## Checks before a pull request
 

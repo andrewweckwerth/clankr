@@ -1,9 +1,8 @@
 'use client';
-import SongModal from './SongModal';
-import { useState } from 'react';
+import { useApiFetch } from '@/lib/api';
+import { useMemo, useState } from 'react';
 import { mutate } from 'swr';
 import { useEffect } from 'react';
-import JobModal from './JobModal';
 function cn(...inputs: (string | boolean | null | undefined)[]): string {
   return inputs.filter(Boolean).join(' ');
 }
@@ -25,16 +24,7 @@ const steps = [
 
 
 export default function UploadForm({ setJobModalOpen, setJobId, setSelected }: Props) {
-
-  interface SongResult {
-    title: string;
-    artist: string;
-    fingerprint: string;
-    duration: number;
-    lyrics: string;
-    classification: string;
-    accuracy: number;
-  }
+  const apiFetch = useApiFetch();
 
   const [start, setStart] = useState<'audio' | 'text' | 'search'>('audio');
   const [end, setEnd] = useState('classification');
@@ -50,15 +40,18 @@ export default function UploadForm({ setJobModalOpen, setJobId, setSelected }: P
       ? steps.findIndex(s => s.key === 'identify')
       : 0;
 
-  const validEndSteps = steps
-    .filter((_, idx) => idx > startIndex)
-    .filter(s => s.key !== 'stems'); // 👈 Remove stems from end options
+  const validEndSteps = useMemo(
+    () => steps
+      .filter((_, idx) => idx > startIndex)
+      .filter(s => s.key !== 'stems'),
+    [startIndex],
+  );
 
   useEffect(() => {
     if (!validEndSteps.find(s => s.key === end)) {
       setEnd(validEndSteps[0]?.key || steps[startIndex].key);
     }
-  }, [start]);
+  }, [end, startIndex, validEndSteps]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,11 +77,21 @@ export default function UploadForm({ setJobModalOpen, setJobId, setSelected }: P
     outputs.forEach(service => formData.append('outputs', service));
 
     try {
-      const res = await fetch('/api/analyze', {
+      const res = await apiFetch('/api/analyze', {
         method: 'POST',
         body: formData,
       });
       const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 429) {
+          alert(`Daily analysis limit reached. Try again tomorrow.`);
+        } else if (res.status === 401) {
+          alert('Please sign in again.');
+        } else {
+          alert(data.detail?.error || data.error || 'Analysis failed');
+        }
+        return;
+      }
       if (start == "search") {
         if (data.status == "404") {
           alert("song not found in our database")
@@ -108,6 +111,7 @@ export default function UploadForm({ setJobModalOpen, setJobId, setSelected }: P
       console.log(err)
     } finally {
       mutate('/api/songs');
+      mutate('/api/songs/mine');
       setLoading(false);
     }
   };

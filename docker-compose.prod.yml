@@ -65,7 +65,7 @@ services:
     image: ${IMAGE_PREFIX:-ghcr.io/your-github-owner/clankr}/frontend:${IMAGE_TAG:-latest}
     build:
       context: ./services/frontend
-      target: runner 
+      target: runner
     depends_on:
       orchestrator:
         condition: service_healthy

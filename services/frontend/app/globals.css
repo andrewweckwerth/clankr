@@ -24,3 +24,18 @@ body {
   color: var(--foreground);
   /* font-family: Arial, Helvetica, sans-serif; */
 }
+
+.auth-input {
+  width: 100%;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 0.875rem;
+  background: rgb(255 255 255 / 0.05);
+  padding: 0.75rem 0.875rem;
+  color: white;
+  outline: none;
+}
+
+.auth-input:focus {
+  border-color: rgb(167 139 250 / 0.8);
+  box-shadow: 0 0 0 3px rgb(139 92 246 / 0.15);
+}

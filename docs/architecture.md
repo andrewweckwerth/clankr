@@ -3,7 +3,9 @@
 Clankr is a Next.js frontend backed by a FastAPI orchestrator, PostgreSQL, Redis Streams, MinIO, specialist workers, and Ollama.
 
 ```text
-Next.js frontend (:3000)
+Browser
+        |
+Next.js frontend (:3000) ---- Better Auth (PostgreSQL auth_* tables)
         |
 FastAPI orchestrator (:8000) ---- PostgreSQL (:5432)
         |                          jobs, songs, job_steps
@@ -17,6 +19,13 @@ FastAPI orchestrator (:8000) ---- PostgreSQL (:5432)
 
 In production, Traefik is the only public edge service. It terminates HTTPS and routes the configured hostname to the frontend. Specialist services, PostgreSQL, Redis, MinIO, the orchestrator, and Ollama remain on internal Docker networks.
 
+Authentication stays in Next.js. Better Auth sets the browser session cookie
+and handles Google OAuth plus email/password sign-in. Requests to the
+application API go through Next.js, which validates the session and signs a
+short-lived internal identity assertion for the orchestrator. The orchestrator
+verifies that assertion before mapping the Better Auth user ID to the local
+numeric application user.
+
 ## Request flow
 
 1. The frontend sends `POST /api/analyze` to the orchestrator.
@@ -24,7 +33,9 @@ In production, Traefik is the only public edge service. It terminates HTTPS and 
 3. The orchestrator creates a `jobs` row and one `job_steps` row per requested stage.
 4. A Redis Stream task is published for the first stage. Workers consume tasks, read/write MinIO objects, and publish result events.
 5. The orchestrator consumes result events, updates PostgreSQL transactionally, and queues the next requested stage.
-6. When all requested steps complete, the job is upserted into `songs` and marked `completed`.
+6. When all requested steps complete, the job is upserted into the canonical
+   `songs` record and marked `completed`; the user's `user_songs` relationship
+   is also recorded.
 
 Redis Streams use consumer groups and at-least-once delivery. Abandoned pending messages can be reclaimed after `REDIS_VISIBILITY_TIMEOUT_MS`.
 
