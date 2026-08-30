@@ -33,13 +33,13 @@ Before schema changes, capture a database dump and record the exact application 
 ## Troubleshooting
 
 ```bash
-docker compose --project-name clankr-prod --env-file /path/to/production.env \
+docker compose --project-name clankr-prod --env-file /path/to/.env \
   -f docker-compose.prod.yml ps
 
-docker compose --project-name clankr-prod --env-file /path/to/production.env \
+docker compose --project-name clankr-prod --env-file /path/to/.env \
   -f docker-compose.prod.yml logs --tail=200 orchestrator
 
-docker compose --project-name clankr-prod --env-file /path/to/production.env \
+docker compose --project-name clankr-prod --env-file /path/to/.env \
   -f docker-compose.prod.yml exec classifier wget -qO- http://localhost:8000/health/llm
 ```
 
