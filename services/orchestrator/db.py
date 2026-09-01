@@ -20,6 +20,7 @@ async def create_job(
     conn: asyncpg.Connection,
     *,
     user_id: int,
+    job_type: str,
     stages: Sequence[str],
     song_id: Optional[int] = None,
     input_type: Optional[str] = None,
@@ -28,6 +29,7 @@ async def create_job(
     lyrics: Optional[str] = None,
     classification: Optional[str] = None,
     accuracy: Optional[float] = None,
+    source_file_path: Optional[str] = None,
     file_path: Optional[str] = None,
     duration: Optional[int] = None,
     fingerprint: Optional[str] = None,
@@ -42,19 +44,21 @@ async def create_job(
         job_id = await conn.fetchval(
             """
             INSERT INTO jobs (
-              user_id, song_id, current_stage, status, input_type,
+              user_id, song_id, job_type, current_stage, status, input_type,
               title, artist, lyrics, classification, accuracy,
-              file_path, duration, fingerprint, fingerprint_hash,
+              source_file_path, file_path, duration, fingerprint, fingerprint_hash,
               audio_processed
             ) VALUES (
-              $1, $2, $3, 'queued', $4,
-              $5, $6, $7, $8, $9,
-              $10, $11, $12, $13, $14
+              $1, $2, $3, $4, 'queued', $5,
+              $6, $7, $8, $9, $10,
+              $11, $12, $13, $14, $15,
+              $16
             )
             RETURNING id;
             """,
             user_id,
             song_id,
+            job_type,
             stages[0],
             input_type,
             title,
@@ -62,6 +66,7 @@ async def create_job(
             lyrics,
             classification,
             accuracy,
+            source_file_path,
             file_path,
             duration,
             fingerprint,
@@ -82,6 +87,8 @@ async def create_job(
 
 JOB_COLUMNS = {
     "song_id",
+    "job_type",
+    "cache_hit",
     "current_stage",
     "status",
     "input_type",
@@ -90,6 +97,7 @@ JOB_COLUMNS = {
     "lyrics",
     "classification",
     "accuracy",
+    "source_file_path",
     "file_path",
     "duration",
     "fingerprint",
@@ -147,6 +155,32 @@ async def get_job_with_steps_for_user(
         result = dict(job)
         result["steps"] = [dict(step) for step in steps]
         return result
+
+
+async def list_jobs_for_user(
+    pool,
+    user_id: int,
+    *,
+    limit: int = 100,
+) -> list[Dict[str, Any]]:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT jobs.id, jobs.song_id, jobs.job_type, jobs.cache_hit,
+                   jobs.current_stage, jobs.status, jobs.input_type,
+                   jobs.title, jobs.artist, jobs.error,
+                   jobs.created_at, jobs.updated_at, jobs.completed_at,
+                   songs.title AS song_title, songs.artist AS song_artist
+            FROM jobs
+            LEFT JOIN songs ON songs.id = jobs.song_id
+            WHERE jobs.user_id = $1
+            ORDER BY jobs.created_at DESC, jobs.id DESC
+            LIMIT $2
+            """,
+            user_id,
+            limit,
+        )
+    return [dict(row) for row in rows]
 
 
 async def upsert_user(
@@ -239,9 +273,10 @@ async def upsert_song(
         """
         INSERT INTO songs (
             title, artist, duration, fingerprint, fingerprint_hash,
-            lyrics, classification, accuracy, file_path, audio_processed
+            lyrics, classification, accuracy, file_path, audio_processed,
+            pipeline_complete
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,TRUE)
         ON CONFLICT (fingerprint_hash) DO UPDATE SET
             title           = COALESCE(EXCLUDED.title, songs.title),
             artist          = COALESCE(EXCLUDED.artist, songs.artist),
@@ -251,7 +286,8 @@ async def upsert_song(
             classification  = COALESCE(EXCLUDED.classification, songs.classification),
             accuracy        = COALESCE(EXCLUDED.accuracy, songs.accuracy),
             file_path       = COALESCE(EXCLUDED.file_path, songs.file_path),
-            audio_processed = (EXCLUDED.audio_processed OR songs.audio_processed)
+            audio_processed = (EXCLUDED.audio_processed OR songs.audio_processed),
+            pipeline_complete = TRUE
         RETURNING id;
         """,
         title,
@@ -273,7 +309,10 @@ async def get_song_by_fingerprint_hash(
     fingerprint_hash: str,
 ) -> Optional[asyncpg.Record]:
     return await conn.fetchrow(
-        "SELECT * FROM songs WHERE fingerprint_hash = $1",
+        """
+        SELECT * FROM songs
+        WHERE fingerprint_hash = $1 AND pipeline_complete IS TRUE
+        """,
         fingerprint_hash,
     )
 
@@ -286,6 +325,7 @@ async def get_song_by_title_artist(pool, title: str, artist: str) -> Optional[in
             FROM songs
             WHERE LOWER(title) = LOWER($1)
               AND LOWER(artist) = LOWER($2)
+              AND pipeline_complete IS TRUE
             LIMIT 1
             """,
             title,
@@ -305,6 +345,7 @@ async def search_song_fuzzy(
        similarity(LOWER(title), LOWER($1)) +
        similarity(LOWER(artist), LOWER($2)) AS score
     FROM songs
+    WHERE pipeline_complete IS TRUE
     ORDER BY (LOWER(title) <-> LOWER($1)) +
              (LOWER(artist) <-> LOWER($2))
     LIMIT $3;

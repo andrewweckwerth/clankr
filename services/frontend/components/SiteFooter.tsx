@@ -8,18 +8,21 @@ export default function SiteFooter() {
           <Link href="/" className="font-semibold text-white transition hover:text-violet-300">
             clankr
           </Link>
-          <p className="mt-1">Understand the lyrics behind the music.</p>
+          <p className="mt-1">Traceable audio analysis, one job at a time.</p>
         </div>
 
         <div className="flex items-center gap-5">
-          <Link className="transition hover:text-white" href="/#analyze">
-            Analyze a song
+          <Link className="transition hover:text-white" href="/projects/new">
+            Full pipeline
           </Link>
-          <Link className="transition hover:text-white" href="/#all-songs">
-            All songs
+          <Link className="transition hover:text-white" href="/tools">
+            Tools
           </Link>
-          <Link className="transition hover:text-white" href="/#your-songs">
-            Your songs
+          <Link className="transition hover:text-white" href="/jobs">
+            Jobs
+          </Link>
+          <Link className="transition hover:text-white" href="/songs">
+            Songs
           </Link>
         </div>
       </div>

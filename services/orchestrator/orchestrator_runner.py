@@ -4,13 +4,14 @@ import logging
 import traceback
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Optional
+from pathlib import Path
+from typing import Any, Optional
 
 import asyncpg
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from redis.asyncio import Redis
 
 from auth import get_current_user
@@ -19,19 +20,25 @@ from db import (
     create_job,
     dsn,
     get_job_with_steps_for_user,
+    list_jobs_for_user,
     record_user_song,
-    search_song_fuzzy,
     update_job,
     upsert_song,
 )
-from redis_cache import cache_song_id
+from redis_cache import cache_song_id, find_song_by_fingerprint
 from redis_queue import REDIS_URL, RESULT_GROUP, RESULT_STREAM, STREAMS, enqueue_task, ensure_consumer_group, new_consumer_name, reclaim_one, task_for_job
-from utils import FRONTEND_ORIGIN, compute_fingerprint_hash, save_uploaded_file
+from utils import FRONTEND_ORIGIN, compute_fingerprint_hash, copy_source_object, delete_object_keys, object_exists, save_uploaded_file, stream_object
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)-9s %(message)s")
 logger = logging.getLogger("orchestrator")
 STAGE_ORDER = ("identify", "demucs", "whisper", "classify")
-OUTPUT_TO_STAGE = {"identify": "identify", "stems": "demucs", "lyrics": "whisper", "classification": "classify"}
+JOB_TYPE_STAGES = {
+    "full": STAGE_ORDER,
+    "acousti": ("identify",),
+    "demucs": ("demucs",),
+    "whisper": ("whisper",),
+    "classifier": ("classify",),
+}
 DAILY_ANALYSIS_LIMIT = 10
 
 
@@ -94,12 +101,14 @@ async def handle_event(app: FastAPI, event: dict[str, Any]) -> None:
                 logger.warning("Ignoring result for missing job/step %s/%s", job_id, stage)
                 return
             if event.get("event") == "started":
+                if job["status"] in ("completed", "failed", "cancelled") or step["status"] != "queued":
+                    return
                 await conn.execute("UPDATE job_steps SET status = 'processing', started_at = COALESCE(started_at, CURRENT_TIMESTAMP) WHERE id = $1 AND status = 'queued'", step["id"])
                 await update_job(conn, job_id, status="processing", current_stage=stage)
                 return
             if event.get("event") != "completed":
                 raise ValueError(f"Unknown Redis result event: {event.get('event')}")
-            if step["status"] == "completed":
+            if step["status"] in ("completed", "failed", "cancelled"):
                 return
             if not event.get("ok", False):
                 error = event.get("error", "stage failed")
@@ -109,17 +118,70 @@ async def handle_event(app: FastAPI, event: dict[str, Any]) -> None:
             result = event.get("result") or {}
             await update_job(conn, job_id, **stage_updates(stage, result))
             await conn.execute("UPDATE job_steps SET status = 'completed', result = $2::jsonb, error = NULL, completed_at = CURRENT_TIMESTAMP WHERE id = $1", step["id"], json.dumps(result))
+            updated_job = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
+
+            if (
+                stage == "identify"
+                and updated_job["job_type"] in ("full", "acousti")
+                and updated_job["fingerprint_hash"]
+            ):
+                cached_song = await find_song_by_fingerprint(
+                    conn,
+                    redis,
+                    updated_job["fingerprint_hash"],
+                )
+                if cached_song:
+                    await conn.execute(
+                        """
+                        UPDATE job_steps
+                        SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP
+                        WHERE job_id = $1 AND status = 'queued'
+                        """,
+                        job_id,
+                    )
+                    await record_user_song(
+                        conn,
+                        user_id=updated_job["user_id"],
+                        song_id=cached_song["id"],
+                    )
+                    await update_job(
+                        conn,
+                        job_id,
+                        status="completed",
+                        current_stage=None,
+                        song_id=cached_song["id"],
+                        cache_hit=True,
+                        title=cached_song["title"],
+                        artist=cached_song["artist"],
+                        lyrics=cached_song["lyrics"],
+                        classification=cached_song["classification"],
+                        accuracy=cached_song["accuracy"],
+                        file_path=cached_song["file_path"],
+                        audio_processed=cached_song["audio_processed"],
+                        completed_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                        error=None,
+                    )
+                    return
+
             next_step = await conn.fetchrow("SELECT stage FROM job_steps WHERE job_id = $1 AND status = 'queued' ORDER BY position LIMIT 1", job_id)
             if next_step:
                 await update_job(conn, job_id, status="queued", current_stage=next_step["stage"])
                 updated = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
                 next_task = task_for_job(dict(updated), next_step["stage"])
-            else:
-                song_id = await upsert_song(conn, title=job["title"], artist=job["artist"], duration=job["duration"], fingerprint=job["fingerprint"], fingerprint_hash=job["fingerprint_hash"], lyrics=job["lyrics"], classification=job["classification"], accuracy=job["accuracy"], file_path=job["file_path"], audio_processed=job["audio_processed"])
+            elif updated_job["job_type"] == "full":
+                song_id = await upsert_song(conn, title=updated_job["title"], artist=updated_job["artist"], duration=updated_job["duration"], fingerprint=updated_job["fingerprint"], fingerprint_hash=updated_job["fingerprint_hash"], lyrics=updated_job["lyrics"], classification=updated_job["classification"], accuracy=updated_job["accuracy"], file_path=updated_job["file_path"], audio_processed=updated_job["audio_processed"])
                 await update_job(conn, job_id, status="completed", current_stage=None, song_id=song_id, completed_at=datetime.now(timezone.utc).replace(tzinfo=None), error=None)
-                if job["user_id"] is not None:
-                    await record_user_song(conn, user_id=job["user_id"], song_id=song_id)
-                await cache_song_id(redis, job["fingerprint_hash"], song_id)
+                await record_user_song(conn, user_id=updated_job["user_id"], song_id=song_id)
+                await cache_song_id(redis, updated_job["fingerprint_hash"], song_id)
+            else:
+                await update_job(
+                    conn,
+                    job_id,
+                    status="completed",
+                    current_stage=None,
+                    completed_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                    error=None,
+                )
     if next_task:
         await enqueue_task(redis, next_task)
 
@@ -136,6 +198,38 @@ def stage_updates(stage: str, result: dict[str, Any]) -> dict[str, Any]:
     if stage == "classify":
         return {"classification": result.get("classification"), "accuracy": result.get("accuracy")}
     raise ValueError(f"Unknown stage: {stage}")
+
+
+async def consume_quota_or_raise(pool, user_id: int) -> int:
+    async with pool.acquire() as conn:
+        usage_count = await consume_daily_analysis(
+            conn,
+            user_id=user_id,
+            usage_date=datetime.now(timezone.utc).date(),
+            limit=DAILY_ANALYSIS_LIMIT,
+        )
+    if usage_count is not None:
+        return usage_count
+
+    reset_at = datetime.combine(
+        datetime.now(timezone.utc).date(),
+        datetime.min.time(),
+        tzinfo=timezone.utc,
+    ) + timedelta(days=1)
+    retry_after = max(1, int((reset_at - datetime.now(timezone.utc)).total_seconds()))
+    raise HTTPException(
+        status_code=429,
+        detail={
+            "error": "Daily analysis limit reached",
+            "limit": DAILY_ANALYSIS_LIMIT,
+            "reset_at": reset_at.isoformat(),
+        },
+        headers={
+            "Retry-After": str(retry_after),
+            "X-RateLimit-Limit": str(DAILY_ANALYSIS_LIMIT),
+            "X-RateLimit-Remaining": "0",
+        },
+    )
 
 
 @app.get("/health")
@@ -157,6 +251,7 @@ async def list_songs(request: Request, user: dict = Depends(get_current_user)):
                 """
                 SELECT songs.*
                 FROM songs
+                WHERE songs.pipeline_complete IS TRUE
                 ORDER BY songs.updated_at DESC NULLS LAST, songs.id DESC
                 """,
             )
@@ -177,6 +272,7 @@ async def list_my_songs(request: Request, user: dict = Depends(get_current_user)
                 FROM songs
                 JOIN user_songs ON user_songs.song_id = songs.id
                 WHERE user_songs.user_id = $1
+                  AND songs.pipeline_complete IS TRUE
                 ORDER BY user_songs.last_submitted_at DESC, songs.id DESC
                 """,
                 user["id"],
@@ -195,7 +291,7 @@ async def get_song(request: Request, song_id: int, user: dict = Depends(get_curr
                 """
                 SELECT songs.*
                 FROM songs
-                WHERE songs.id = $1
+                WHERE songs.id = $1 AND songs.pipeline_complete IS TRUE
                 """,
                 song_id,
             )
@@ -207,6 +303,67 @@ async def get_song(request: Request, song_id: int, user: dict = Depends(get_curr
     except Exception:
         logger.exception("Database error getting song %s", song_id)
         return JSONResponse(status_code=500, content={"error": "Database error"})
+
+
+@app.delete("/api/songs/{song_id}")
+async def remove_song_from_library(
+    request: Request,
+    song_id: int,
+    user: dict = Depends(get_current_user),
+):
+    async with request.app.state.db_pool.acquire() as conn:
+        removed = await conn.fetchval(
+            """
+            DELETE FROM user_songs
+            WHERE user_id = $1 AND song_id = $2
+            RETURNING song_id
+            """,
+            user["id"],
+            song_id,
+        )
+    if removed is None:
+        raise HTTPException(status_code=404, detail="Song is not in your library")
+    return {"success": True}
+
+
+@app.get("/api/songs/{song_id}/artifact")
+async def download_song_artifact(
+    request: Request,
+    song_id: int,
+    user: dict = Depends(get_current_user),
+):
+    async with request.app.state.db_pool.acquire() as conn:
+        song = await conn.fetchrow(
+            """
+            SELECT file_path FROM songs
+            WHERE id = $1 AND pipeline_complete IS TRUE
+            """,
+            song_id,
+        )
+    if not song or not song["file_path"]:
+        raise HTTPException(status_code=404, detail="Song artifact not found")
+    if not await asyncio.to_thread(object_exists, song["file_path"]):
+        raise HTTPException(status_code=404, detail="Song artifact not found")
+    filename = Path(song["file_path"]).name
+    return StreamingResponse(
+        stream_object(song["file_path"]),
+        media_type="audio/wav",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/jobs")
+async def list_jobs(
+    request: Request,
+    limit: int = Query(100, ge=1, le=200),
+    user: dict = Depends(get_current_user),
+):
+    jobs = await list_jobs_for_user(
+        request.app.state.db_pool,
+        user["id"],
+        limit=limit,
+    )
+    return JSONResponse(status_code=200, content=jsonable_encoder(jobs))
 
 
 @app.get("/api/jobs/{job_id}")
@@ -223,12 +380,134 @@ async def get_job(request: Request, job_id: int, user: dict = Depends(get_curren
         return JSONResponse(status_code=500, content={"error": "Database error"})
 
 
+@app.get("/api/jobs/{job_id}/artifact")
+async def download_job_artifact(
+    request: Request,
+    job_id: int,
+    user: dict = Depends(get_current_user),
+):
+    job = await get_job_with_steps_for_user(
+        request.app.state.db_pool,
+        job_id,
+        user["id"],
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] != "completed" or job["job_type"] != "demucs" or not job["file_path"]:
+        raise HTTPException(status_code=404, detail="Job artifact not found")
+    if not await asyncio.to_thread(object_exists, job["file_path"]):
+        raise HTTPException(status_code=404, detail="Job artifact not found")
+    filename = Path(job["file_path"]).name
+    return StreamingResponse(
+        stream_object(job["file_path"]),
+        media_type="audio/wav",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/api/jobs/{job_id}/retry")
+async def retry_job(
+    request: Request,
+    job_id: int,
+    user: dict = Depends(get_current_user),
+):
+    original = await get_job_with_steps_for_user(
+        request.app.state.db_pool,
+        job_id,
+        user["id"],
+    )
+    if not original:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if original["status"] != "failed":
+        raise HTTPException(status_code=409, detail="Only failed jobs can be retried")
+
+    job_type = original["job_type"]
+    stages = JOB_TYPE_STAGES.get(job_type)
+    if not stages:
+        raise HTTPException(status_code=409, detail="This job type cannot be retried")
+    source_file_path = original["source_file_path"]
+    if original["input_type"] == "audio" and not source_file_path:
+        raise HTTPException(status_code=409, detail="The original upload is unavailable")
+
+    usage_count = await consume_quota_or_raise(request.app.state.db_pool, user["id"])
+    retry_source_file_path = (
+        await asyncio.to_thread(copy_source_object, source_file_path)
+        if source_file_path
+        else None
+    )
+    async with request.app.state.db_pool.acquire() as conn:
+        new_job_id = await create_job(
+            conn,
+            user_id=user["id"],
+            job_type=job_type,
+            stages=stages,
+            input_type=original["input_type"],
+            title=original["title"],
+            artist=original["artist"],
+            lyrics=original["lyrics"] if job_type == "classifier" else None,
+            source_file_path=retry_source_file_path,
+            file_path=retry_source_file_path,
+        )
+        new_job = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", new_job_id)
+    await enqueue_task(request.app.state.redis, task_for_job(dict(new_job), stages[0]))
+    return {
+        "success": True,
+        "job_id": new_job_id,
+        "rate_limit": {
+            "limit": DAILY_ANALYSIS_LIMIT,
+            "remaining": DAILY_ANALYSIS_LIMIT - usage_count,
+        },
+    }
+
+
+@app.delete("/api/jobs/{job_id}")
+async def delete_job(
+    request: Request,
+    job_id: int,
+    user: dict = Depends(get_current_user),
+):
+    job = await get_job_with_steps_for_user(
+        request.app.state.db_pool,
+        job_id,
+        user["id"],
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] in ("queued", "processing"):
+        raise HTTPException(status_code=409, detail="Active jobs cannot be deleted")
+
+    object_keys = {job.get("source_file_path")}
+    for step in job["steps"]:
+        result = step.get("result") or {}
+        if isinstance(result, dict):
+            object_keys.add(result.get("file_path"))
+    if job.get("song_id"):
+        async with request.app.state.db_pool.acquire() as conn:
+            song_path = await conn.fetchval(
+                "SELECT file_path FROM songs WHERE id = $1",
+                job["song_id"],
+            )
+        object_keys.discard(song_path)
+
+    async with request.app.state.db_pool.acquire() as conn:
+        await conn.execute(
+            "DELETE FROM jobs WHERE id = $1 AND user_id = $2",
+            job_id,
+            user["id"],
+        )
+    try:
+        await asyncio.to_thread(delete_object_keys, {key for key in object_keys if key})
+    except Exception:
+        logger.warning("Unable to delete all objects for job %s", job_id, exc_info=True)
+    return {"success": True}
+
+
 @app.post("/api/analyze")
 async def analyze(
     request: Request,
-    input_type: str = Form(...),
+    mode: str = Form(...),
+    service: str = Form(""),
     audio: Optional[UploadFile] = File(None),
-    outputs: List[str] = Form(...),
     title: str = Form(""),
     artist: str = Form(""),
     lyrics: str = Form(""),
@@ -236,64 +515,47 @@ async def analyze(
 ):
     try:
         db_pool = request.app.state.db_pool
-        if input_type == "search":
-            if not title or not artist:
-                return {"success": False, "error": "Missing title or artist for search input"}
-            matches = await search_song_fuzzy(db_pool, title, artist)
-            if matches and matches[0].get("score", 0) >= 0.3:
-                return {"success": True, "song_id": matches[0]["id"], "match": matches[0]}
-            return {"success": False, "error": "Not found", "status": 404}
-        selected = {OUTPUT_TO_STAGE[out] for out in outputs if out in OUTPUT_TO_STAGE}
-        if input_type == "text":
-            selected -= {"identify", "demucs"}
-            if not lyrics.strip():
-                return {"success": False, "error": "Missing lyrics for text input"}
-        elif input_type == "audio":
-            if not audio:
-                return {"success": False, "error": "Missing audio file for audio input"}
+        if mode == "full":
+            job_type = "full"
+        elif mode == "standalone" and service in JOB_TYPE_STAGES and service != "full":
+            job_type = service
         else:
-            return {"success": False, "error": f"Unsupported input type: {input_type}"}
-        stages = [stage for stage in STAGE_ORDER if stage in selected]
-        if not stages:
-            return {"success": False, "error": "At least one valid output is required"}
+            raise HTTPException(status_code=400, detail="Choose a valid analysis mode and service")
+
+        stages = JOB_TYPE_STAGES[job_type]
+        input_type = "text" if job_type == "classifier" else "audio"
+        if input_type == "audio" and not audio:
+            raise HTTPException(status_code=400, detail="An audio file is required")
+        if input_type == "text" and not lyrics.strip():
+            raise HTTPException(status_code=400, detail="Text is required")
+
+        usage_count = await consume_quota_or_raise(db_pool, user["id"])
+        source_file_path = save_uploaded_file(audio) if audio else None
+        display_title = title.strip()
+        if not display_title and audio and audio.filename:
+            display_title = Path(audio.filename).stem
+        if not display_title:
+            display_title = "Text classification" if job_type == "classifier" else "Untitled"
 
         async with db_pool.acquire() as conn:
-            usage_count = await consume_daily_analysis(
+            job_id = await create_job(
                 conn,
                 user_id=user["id"],
-                usage_date=datetime.now(timezone.utc).date(),
-                limit=DAILY_ANALYSIS_LIMIT,
+                job_type=job_type,
+                stages=stages,
+                title=display_title,
+                artist=artist.strip() or None,
+                lyrics=lyrics.strip() or None,
+                input_type=input_type,
+                source_file_path=source_file_path,
+                file_path=source_file_path,
             )
-        if usage_count is None:
-            reset_at = datetime.combine(
-                datetime.now(timezone.utc).date(),
-                datetime.min.time(),
-                tzinfo=timezone.utc,
-            )
-            reset_at += timedelta(days=1)
-            retry_after = max(1, int((reset_at - datetime.now(timezone.utc)).total_seconds()))
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "error": "Daily analysis limit reached",
-                    "limit": DAILY_ANALYSIS_LIMIT,
-                    "reset_at": reset_at.isoformat(),
-                },
-                headers={
-                    "Retry-After": str(retry_after),
-                    "X-RateLimit-Limit": str(DAILY_ANALYSIS_LIMIT),
-                    "X-RateLimit-Remaining": "0",
-                },
-            )
-
-        file_path = save_uploaded_file(audio) if input_type == "audio" else None
-        async with db_pool.acquire() as conn:
-            job_id = await create_job(conn, user_id=user["id"], stages=stages, title=title or "Untitled", artist=artist, lyrics=lyrics or None, input_type=input_type, file_path=file_path)
             job = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
         await enqueue_task(request.app.state.redis, task_for_job(dict(job), stages[0]))
         return {
             "success": True,
             "job_id": job_id,
+            "job_type": job_type,
             "rate_limit": {
                 "limit": DAILY_ANALYSIS_LIMIT,
                 "remaining": DAILY_ANALYSIS_LIMIT - usage_count,

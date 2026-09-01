@@ -4,8 +4,8 @@ Clankr is a self-hosted audio-analysis application that explores whether song ly
 
 ## Why this project is interesting
 
-- A Next.js frontend exposes one workflow for audio uploads, pasted lyrics, and metadata search.
-- A FastAPI orchestrator turns optional analysis stages into durable, database-backed jobs.
+- A Next.js workspace exposes a fixed full pipeline plus each specialist service as an individual tool.
+- A FastAPI orchestrator turns full and standalone analyses into durable, database-backed jobs.
 - PostgreSQL, MinIO, Docker Compose, GitHub Actions, and an internal Ollama model make the project deployable without a managed cloud dependency.
 - The processing pipeline demonstrates service boundaries, asynchronous work, object storage, deduplication, health checks, and production deployment.
 
@@ -41,3 +41,8 @@ See the [documentation index](docs/README.md) for the system design and local de
 ## Project status
 
 This is an active engineering project. The current implementation uses Redis Streams for stage queues, has no automated test suite, and treats the classifier as a probabilistic signal rather than proof of authorship. Those tradeoffs are documented alongside the architecture.
+
+Full-project uploads use Acousti as a global fingerprint cache gate. Cache hits
+reuse the canonical Song; cache misses continue through Demucs, Whisper, and the
+classifier. Standalone service runs remain in the authenticated user's job
+history and do not create new Songs.
