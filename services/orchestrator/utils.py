@@ -1,9 +1,12 @@
 import os
-import uuid
 import hashlib
-from minio import Minio
+import uuid
+from collections.abc import Iterable, Iterator
+from typing import Any, Dict, Optional
+
 from fastapi import UploadFile
-from typing import Optional, Dict, Any
+from minio import Minio
+from minio.commonconfig import CopySource
 
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
@@ -35,7 +38,7 @@ def compute_fingerprint_hash(fingerprint: str) -> str:
 
 
 def save_uploaded_file(upload_file: UploadFile) -> str:
-    ext = os.path.splitext(upload_file.filename)[1]
+    ext = os.path.splitext(upload_file.filename or "")[1]
     filename = f"{uuid.uuid4().hex}{ext}"
     object_key = f"raw/{filename}"
     upload_file.file.seek(0)
@@ -49,7 +52,41 @@ def save_uploaded_file(upload_file: UploadFile) -> str:
     )
     return object_key
 
-def make_unique_key(stage: str, file_name: Optional[str], payload: Dict[str,Any]) -> str:
+
+def object_exists(object_key: str) -> bool:
+    try:
+        _minio.stat_object(MINIO_BUCKET, object_key)
+        return True
+    except Exception:
+        return False
+
+
+def stream_object(object_key: str) -> Iterator[bytes]:
+    response = _minio.get_object(MINIO_BUCKET, object_key)
+    try:
+        yield from response.stream(amt=64 * 1024)
+    finally:
+        response.close()
+        response.release_conn()
+
+
+def delete_object_keys(object_keys: Iterable[str]) -> None:
+    for object_key in object_keys:
+        _minio.remove_object(MINIO_BUCKET, object_key)
+
+
+def copy_source_object(source_key: str) -> str:
+    extension = os.path.splitext(source_key)[1]
+    destination_key = f"raw/{uuid.uuid4().hex}{extension}"
+    _minio.copy_object(
+        MINIO_BUCKET,
+        destination_key,
+        CopySource(MINIO_BUCKET, source_key),
+    )
+    return destination_key
+
+
+def make_unique_key(stage: str, file_name: Optional[str], payload: Dict[str, Any]) -> str:
     fp_hash = payload.get("fingerprint_hash") or ""
     base = f"{stage}|{file_name or ''}|{fp_hash}"
     return hashlib.sha1(base.encode()).hexdigest()

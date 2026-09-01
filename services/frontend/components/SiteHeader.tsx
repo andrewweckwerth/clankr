@@ -15,15 +15,18 @@ export default function SiteHeader() {
           <span className="text-lg font-semibold tracking-tight text-white">clankr</span>
         </Link>
 
-        <div className="hidden items-center gap-7 text-sm text-zinc-400 sm:flex">
-          <Link className="transition hover:text-white" href="/#analyze">
-            Analyze
+        <div className="hidden items-center gap-6 text-sm text-zinc-400 md:flex">
+          <Link className="transition hover:text-white" href="/projects/new">
+            Full pipeline
           </Link>
-          <Link className="transition hover:text-white" href="/#all-songs">
-            All songs
+          <Link className="transition hover:text-white" href="/tools">
+            Tools
           </Link>
-          <Link className="transition hover:text-white" href="/#your-songs">
-            Your songs
+          <Link className="transition hover:text-white" href="/jobs">
+            My jobs
+          </Link>
+          <Link className="transition hover:text-white" href="/songs">
+            Songs
           </Link>
         </div>
 

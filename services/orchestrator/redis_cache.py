@@ -36,7 +36,7 @@ async def find_song_by_fingerprint(
     if cached_song_id:
         try:
             song = await conn.fetchrow(
-                "SELECT * FROM songs WHERE id = $1",
+                "SELECT * FROM songs WHERE id = $1 AND pipeline_complete IS TRUE",
                 int(cached_song_id),
             )
         except (TypeError, ValueError):
@@ -53,7 +53,10 @@ async def find_song_by_fingerprint(
             logger.debug("Unable to remove stale song cache key", exc_info=True)
 
     song = await conn.fetchrow(
-        "SELECT * FROM songs WHERE fingerprint_hash = $1",
+        """
+        SELECT * FROM songs
+        WHERE fingerprint_hash = $1 AND pipeline_complete IS TRUE
+        """,
         fingerprint_hash,
     )
     if song:

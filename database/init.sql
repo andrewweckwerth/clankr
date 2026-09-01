@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS songs (
   fingerprint TEXT,
   fingerprint_hash TEXT UNIQUE,     -- natural key for dedupe/upsert
   audio_processed BOOLEAN DEFAULT FALSE,
+  pipeline_complete BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -94,6 +95,9 @@ CREATE TABLE IF NOT EXISTS jobs (
   id               BIGSERIAL PRIMARY KEY,
   user_id          BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   song_id          INTEGER REFERENCES songs(id) ON DELETE SET NULL,
+  job_type         TEXT NOT NULL DEFAULT 'full'
+                   CHECK (job_type IN ('full', 'acousti', 'demucs', 'whisper', 'classifier')),
+  cache_hit        BOOLEAN NOT NULL DEFAULT FALSE,
   current_stage    TEXT,
   status           TEXT NOT NULL DEFAULT 'queued'
                    CHECK (status IN ('queued', 'processing', 'completed', 'failed', 'cancelled')),
@@ -103,7 +107,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   lyrics           TEXT,
   classification   TEXT CHECK (classification IN ('AI','Human')),
   accuracy         NUMERIC(5,4),
-  file_path       TEXT,              -- MinIO object key, e.g. raw/<id>.mp3
+  source_file_path TEXT,              -- immutable original MinIO key, e.g. raw/<id>.mp3
+  file_path        TEXT,              -- current stage MinIO key
   duration         INTEGER,
   fingerprint      TEXT,
   fingerprint_hash TEXT,     -- natural key for dedupe/upsert

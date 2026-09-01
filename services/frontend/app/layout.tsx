@@ -15,8 +15,8 @@ import SiteHeader from "@/components/SiteHeader";
 // });
 
 export const metadata: Metadata = {
-  title: "Clankr - Detect AI Lyrics",
-  description: "See if songs have AI generated lyrics",
+  title: "Clankr — Audio Analysis Workspace",
+  description: "Identify songs, isolate vocals, transcribe lyrics, and inspect AI classification in one traceable workflow.",
   icons: { icon: '/favicon.ico', apple: '/apple-touch-icon.png' },
 };
 
