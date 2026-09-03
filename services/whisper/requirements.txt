@@ -3,4 +3,4 @@ python-multipart
 minio
 fastapi
 uvicorn
-redis>=5.0,<6
+redis>=8.1.0,<9
