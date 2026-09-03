@@ -14,7 +14,7 @@ export default function AuthControls() {
     return (
       <Link
         href="/sign-in"
-        className="rounded-full border border-white/15 bg-white px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-violet-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d]"
+        className="y2k-button rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9bbdf0] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d]"
       >
         Sign in
       </Link>
@@ -33,7 +33,7 @@ export default function AuthControls() {
       <button
         type="button"
         onClick={() => void authClient.signOut()}
-        className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+        className="y2k-button-secondary rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9bbdf0]"
       >
         Sign out
       </button>

@@ -1,10 +1,18 @@
 'use client';
 
 import AnalysisForm, { type JobType } from '@/components/AnalysisForm';
+import { WorkspaceFrame } from '@/components/WorkspaceChrome';
 import { authClient } from '@/lib/auth-client';
 import Link from 'next/link';
 
 type StandaloneJobType = Exclude<JobType, 'full'>;
+
+const TOOL_TITLES: Record<StandaloneJobType, string> = {
+  acousti: 'Identify a song',
+  demucs: 'Split the vocals',
+  whisper: 'Transcribe audio',
+  classifier: 'Classify text',
+};
 
 export default function ToolRunPage({ jobType }: { jobType: StandaloneJobType }) {
   const { data: session, isPending } = authClient.useSession();
@@ -14,17 +22,14 @@ export default function ToolRunPage({ jobType }: { jobType: StandaloneJobType })
     return (
       <main className="mx-auto max-w-xl px-5 py-24 text-center">
         <h1 className="text-3xl font-semibold text-white">Sign in to use this service</h1>
-        <Link href="/sign-in" className="mt-6 inline-flex rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-zinc-950">Sign in</Link>
+        <Link href="/sign-in" className="y2k-button mt-6 inline-flex rounded-full px-5 py-2.5 text-sm font-semibold">Sign in</Link>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto min-h-[calc(100vh-9rem)] w-full max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
-      <Link href="/tools" className="text-sm text-zinc-500 transition hover:text-white">← All standalone services</Link>
-      <div className="mt-8">
-        <AnalysisForm jobType={jobType} />
-      </div>
-    </main>
+    <WorkspaceFrame crumb={<><Link href="/tools">Standalone Tools</Link> &gt; {TOOL_TITLES[jobType]}</>}>
+      <AnalysisForm jobType={jobType} />
+    </WorkspaceFrame>
   );
 }

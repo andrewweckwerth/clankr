@@ -1,25 +1,46 @@
 'use client';
 
 import ProcessedSongs from '@/components/ProcessedSongs';
+import SignedOutPanel from '@/components/SignedOutPanel';
+import { WorkspaceFrame, WorkspaceWindow } from '@/components/WorkspaceChrome';
 import { authClient } from '@/lib/auth-client';
-import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 export default function SongsPage() {
+  return (
+    <Suspense fallback={<main className="mx-auto max-w-6xl px-5 py-16 text-zinc-400">Loading…</main>}>
+      <SongsContent />
+    </Suspense>
+  );
+}
+
+function SongsContent() {
   const { data: session, isPending } = authClient.useSession();
+  const searchParams = useSearchParams();
+  const view = searchParams.get('view') === 'all' ? 'all' : 'mine';
+  const isCatalog = view === 'all';
   if (isPending) return <main className="mx-auto max-w-6xl px-5 py-16 text-zinc-400">Loading…</main>;
-  if (!session) return <main className="mx-auto max-w-xl px-5 py-24 text-center text-white">Sign in to view Songs.</main>;
+  if (!session) return <SignedOutPanel
+    title={isCatalog ? 'All Songs' : 'My Songs'}
+    label="Song library"
+    heading={`Sign in to view ${isCatalog ? 'all songs' : 'your songs'}`}
+    description="Review recordings identified by Clankr and lyric assessments from completed pipeline runs."
+  />;
 
   return (
-    <main className="mx-auto min-h-[calc(100vh-9rem)] w-full max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
-      <Link href="/" className="text-sm text-zinc-500 transition hover:text-white">← Workspace</Link>
-      <header className="mt-8 max-w-3xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-emerald-300">Canonical results</p>
-        <h1 className="mt-4 text-4xl font-semibold tracking-[-0.035em] text-white">Songs</h1>
-        <p className="mt-4 text-base leading-7 text-zinc-400">One shared result per fingerprint, connected to each user through their personal library.</p>
-      </header>
-      <div className="mt-10">
-        <ProcessedSongs />
-      </div>
-    </main>
+    <WorkspaceFrame crumb={isCatalog ? 'All Songs' : 'My Songs'}>
+      <WorkspaceWindow title={isCatalog ? 'All Songs' : 'My Songs'}>
+        <header className="max-w-3xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">{isCatalog ? 'Canonical catalog' : 'Your library'}</p>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">
+            {isCatalog
+              ? 'Canonical recordings Clankr can reuse by fingerprint without processing them again.'
+              : 'Songs claimed through a completed full pipeline or an Acousti cache hit.'}
+          </p>
+        </header>
+      </WorkspaceWindow>
+      <ProcessedSongs view={view} />
+    </WorkspaceFrame>
   );
 }

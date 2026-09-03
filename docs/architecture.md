@@ -60,7 +60,7 @@ Whisper accept audio, while the classifier accepts text.
 
 ## Product surfaces
 
-- **Full Project** creates a full job. Cache misses become canonical Songs only
+- **Full Pipeline** creates a full job. Cache misses become canonical Songs only
   after every stage succeeds.
 - **Tools** creates one-stage standalone jobs. These results remain Jobs rather
   than becoming new Songs.

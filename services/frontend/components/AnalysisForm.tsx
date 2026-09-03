@@ -8,8 +8,8 @@ export type JobType = 'full' | 'acousti' | 'demucs' | 'whisper' | 'classifier';
 
 const JOB_DETAILS: Record<JobType, { title: string; description: string; input: 'audio' | 'text' }> = {
   full: {
-    title: 'Run the full project',
-    description: 'Identify the recording, isolate its vocals, transcribe the lyrics, and classify the result.',
+    title: 'Detect AI-generated lyrics',
+    description: 'Identify the recording, isolate and transcribe its vocals, then assess whether the lyrics show signs of AI generation.',
     input: 'audio',
   },
   acousti: {
@@ -35,10 +35,10 @@ const JOB_DETAILS: Record<JobType, { title: string; description: string; input: 
 };
 
 const FULL_STAGES = [
-  ['01', 'Identify', 'Fingerprint and global cache lookup'],
-  ['02', 'Separate', 'Demucs isolates the vocal stem'],
-  ['03', 'Transcribe', 'Whisper turns vocals into text'],
-  ['04', 'Classify', 'The classifier evaluates the lyrics'],
+  ['01', 'Identify', 'Fingerprint the recording and check the global cache'],
+  ['02', 'Isolate vocals', 'Demucs extracts the vocal stem for transcription'],
+  ['03', 'Transcribe lyrics', 'Whisper turns the vocal stem into text'],
+  ['04', 'Assess authorship', 'The classifier checks the lyrics for signs of AI generation'],
 ];
 
 function errorMessage(payload: unknown, fallback: string) {
@@ -101,11 +101,11 @@ export default function AnalysisForm({ jobType }: { jobType: JobType }) {
   };
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] shadow-2xl shadow-black/20">
-      <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="border-b border-white/10 bg-gradient-to-br from-violet-500/15 via-transparent to-transparent p-7 lg:border-b-0 lg:border-r sm:p-9">
+    <div className="y2k-analysis-layout">
+      <section className="y2k-panel-window y2k-analysis-summary p-7 sm:p-9" data-window-title={jobType === 'full' ? 'Pipeline Overview' : details.title}>
+        <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-violet-300">
-            {jobType === 'full' ? 'Canonical workflow' : 'Standalone tool'}
+            {jobType === 'full' ? 'AI lyric detection workflow' : 'Standalone tool'}
           </p>
           <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white">{details.title}</h2>
           <p className="mt-3 max-w-lg text-sm leading-6 text-zinc-400">{details.description}</p>
@@ -128,58 +128,58 @@ export default function AnalysisForm({ jobType }: { jobType: JobType }) {
             </div>
           )}
         </div>
+      </section>
 
-        <form onSubmit={handleSubmit} className="space-y-5 p-7 sm:p-9">
-          {jobType === 'full' && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-2 text-sm text-zinc-300">
-                <span>Title <span className="text-zinc-600">(optional)</span></span>
-                <input value={title} onChange={(event) => setTitle(event.target.value)} className="auth-input" placeholder="Filled by Acousti when possible" />
-              </label>
-              <label className="space-y-2 text-sm text-zinc-300">
-                <span>Artist <span className="text-zinc-600">(optional)</span></span>
-                <input value={artist} onChange={(event) => setArtist(event.target.value)} className="auth-input" placeholder="Filled by Acousti when possible" />
-              </label>
-            </div>
-          )}
-
-          {details.input === 'audio' ? (
-            <label className="block space-y-2 text-sm text-zinc-300">
-              <span>Audio file</span>
-              <span className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-black/20 px-5 text-center transition hover:border-violet-300/50 hover:bg-violet-500/[0.06]">
-                <span className="text-sm font-medium text-white">{file ? file.name : 'Choose an MP3 or WAV file'}</span>
-                <span className="mt-1 text-xs text-zinc-500">The original upload stays attached to this job.</span>
-                <input
-                  type="file"
-                  accept="audio/mpeg,audio/wav,.mp3,.wav"
-                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                  className="sr-only"
-                />
-              </span>
+      <form onSubmit={handleSubmit} className="y2k-panel-window y2k-analysis-form space-y-5 p-7 sm:p-9" data-window-title={details.input === 'audio' ? 'Upload Audio' : 'Paste Text'}>
+        {jobType === 'full' && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="space-y-2 text-sm text-zinc-300">
+              <span>Title <span className="text-zinc-600">(optional)</span></span>
+              <input value={title} onChange={(event) => setTitle(event.target.value)} className="auth-input" placeholder="Filled by Acousti when possible" />
             </label>
-          ) : (
-            <label className="block space-y-2 text-sm text-zinc-300">
-              <span>Lyrics or text</span>
-              <textarea
-                value={lyrics}
-                onChange={(event) => setLyrics(event.target.value)}
-                className="auth-input min-h-56 resize-y"
-                placeholder="Paste the text you want to classify…"
+            <label className="space-y-2 text-sm text-zinc-300">
+              <span>Artist <span className="text-zinc-600">(optional)</span></span>
+              <input value={artist} onChange={(event) => setArtist(event.target.value)} className="auth-input" placeholder="Filled by Acousti when possible" />
+            </label>
+          </div>
+        )}
+
+        {details.input === 'audio' ? (
+          <label className="block space-y-2 text-sm text-zinc-300">
+            <span>Audio file</span>
+            <span className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-black/20 px-5 text-center transition hover:border-violet-300/50 hover:bg-violet-500/[0.06]">
+              <span className="text-sm font-medium text-white">{file ? file.name : 'Choose an MP3 or WAV file'}</span>
+              <span className="mt-1 text-xs text-zinc-500">The original upload stays attached to this job.</span>
+              <input
+                type="file"
+                accept="audio/mpeg,audio/wav,.mp3,.wav"
+                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                className="sr-only"
               />
-            </label>
-          )}
+            </span>
+          </label>
+        ) : (
+          <label className="block space-y-2 text-sm text-zinc-300">
+            <span>Lyrics or text</span>
+            <textarea
+              value={lyrics}
+              onChange={(event) => setLyrics(event.target.value)}
+              className="auth-input min-h-56 resize-y"
+              placeholder="Paste the text you want to classify…"
+            />
+          </label>
+        )}
 
-          {error && <p className="rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
+        {error && <p className="rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="inline-flex w-full items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? 'Creating job…' : jobType === 'full' ? 'Start full project' : `Run ${details.title.toLowerCase()}`}
-          </button>
-        </form>
-      </div>
-    </section>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="y2k-button inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed"
+        >
+          {submitting ? 'Creating job…' : jobType === 'full' ? 'Check lyrics for AI generation' : `Run ${details.title.toLowerCase()}`}
+        </button>
+      </form>
+    </div>
   );
 }

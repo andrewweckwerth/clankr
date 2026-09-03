@@ -253,6 +253,25 @@ async def consume_daily_analysis(
     )
 
 
+async def get_daily_analysis_usage(
+    conn: asyncpg.Connection,
+    *,
+    user_id: int,
+    usage_date: date,
+) -> int:
+    """Return a user's processing submissions for one UTC calendar day."""
+    usage_count = await conn.fetchval(
+        """
+        SELECT analysis_count
+        FROM user_daily_usage
+        WHERE user_id = $1 AND usage_date = $2
+        """,
+        user_id,
+        usage_date,
+    )
+    return int(usage_count or 0)
+
+
 async def upsert_song(
     conn: asyncpg.Connection,
     *,

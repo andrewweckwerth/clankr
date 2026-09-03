@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { WorkspaceFrame, WorkspaceWindow } from "@/components/WorkspaceChrome";
 
 export default function AccountPage() {
   const { data: session, isPending } = authClient.useSession();
@@ -59,16 +60,15 @@ export default function AccountPage() {
     return (
       <main className="mx-auto flex min-h-[calc(100vh-9rem)] max-w-2xl flex-col items-center justify-center px-5 text-center">
         <h1 className="text-3xl font-semibold text-white">Sign in to view your account</h1>
-        <Link href="/sign-in" className="mt-6 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-violet-200">Sign in</Link>
+        <Link href="/sign-in" className="y2k-button mt-6 rounded-full px-5 py-2.5 text-sm font-semibold">Sign in</Link>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto min-h-[calc(100vh-9rem)] w-full max-w-2xl px-5 py-14 sm:px-8">
-      <Link href="/" className="text-sm text-zinc-400 transition hover:text-white">← Back to Clankr</Link>
-      <section className="mt-8 rounded-3xl border border-white/10 bg-white/[0.04] p-7 sm:p-9">
-        <p className="text-sm font-medium uppercase tracking-[0.2em] text-violet-300">Account</p>
+    <WorkspaceFrame crumb="Account Settings">
+      <WorkspaceWindow title="Account Settings">
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-violet-300">Account</p>
         <h1 className="mt-3 text-3xl font-semibold text-white">{session.user.name}</h1>
         <p className="mt-2 text-zinc-400">{session.user.email}</p>
 
@@ -87,7 +87,7 @@ export default function AccountPage() {
                 type="button"
                 onClick={handleLinkGoogle}
                 disabled={linking}
-                className="mt-5 rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                className="y2k-button mt-5 rounded-full px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed"
               >
                 {linking ? "Connecting…" : "Link Google"}
               </button>
@@ -95,7 +95,7 @@ export default function AccountPage() {
           )}
           {error && <p className="mt-3 text-sm text-red-200">{error}</p>}
         </div>
-      </section>
-    </main>
+      </WorkspaceWindow>
+    </WorkspaceFrame>
   );
 }
