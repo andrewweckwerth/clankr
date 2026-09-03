@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 const orchestratorUrl = process.env.ORCHESTRATOR_URL || "http://orchestrator:8000";
-const allowedPaths = new Set(["analyze", "songs", "jobs"]);
+const allowedPaths = new Set(["analyze", "songs", "jobs", "usage"]);
 
 type RouteContext = {
   params: Promise<{ path: string[] }>;

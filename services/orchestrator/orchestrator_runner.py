@@ -19,6 +19,7 @@ from db import (
     consume_daily_analysis,
     create_job,
     dsn,
+    get_daily_analysis_usage,
     get_job_with_steps_for_user,
     list_jobs_for_user,
     record_user_song,
@@ -241,6 +242,24 @@ async def health(request: Request):
         return {"status": "ok", "redis": "ok"}
     except Exception as exc:
         return JSONResponse(status_code=503, content={"status": "unavailable", "error": str(exc)})
+
+
+@app.get("/api/usage")
+async def get_usage(request: Request, user: dict = Depends(get_current_user)):
+    usage_date = datetime.now(timezone.utc).date()
+    async with request.app.state.db_pool.acquire() as conn:
+        used = await get_daily_analysis_usage(
+            conn,
+            user_id=user["id"],
+            usage_date=usage_date,
+        )
+    used = min(used, DAILY_ANALYSIS_LIMIT)
+    return {
+        "date": usage_date.isoformat(),
+        "limit": DAILY_ANALYSIS_LIMIT,
+        "used": used,
+        "remaining": DAILY_ANALYSIS_LIMIT - used,
+    }
 
 
 @app.get("/api/songs")

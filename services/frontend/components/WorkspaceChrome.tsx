@@ -2,7 +2,7 @@
 
 import { authClient } from '@/lib/auth-client';
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 type WorkspaceWindowProps = {
   title: string;
@@ -21,6 +21,74 @@ export function WorkspaceWindow({ title, children, className = '' }: WorkspaceWi
   );
 }
 
+type DailyUsage = {
+  limit: number;
+  used: number;
+  remaining: number;
+};
+
+const DEFAULT_DAILY_LIMIT = 10;
+
+function DailyUsageMeter() {
+  const [usage, setUsage] = useState<DailyUsage | null>(null);
+  const limit = usage?.limit ?? DEFAULT_DAILY_LIMIT;
+  const remaining = Math.max(0, Math.min(usage?.remaining ?? limit, limit));
+  const used = Math.max(0, Math.min(usage?.used ?? 0, limit));
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadUsage() {
+      try {
+        const response = await fetch('/api/usage', { credentials: 'same-origin' });
+        if (!response.ok) return;
+        const payload = await response.json() as Partial<DailyUsage>;
+        if (
+          !cancelled
+          && typeof payload.limit === 'number'
+          && typeof payload.used === 'number'
+          && typeof payload.remaining === 'number'
+        ) {
+          setUsage({
+            limit: payload.limit,
+            used: payload.used,
+            remaining: payload.remaining,
+          });
+        }
+      } catch {
+        // The server remains the source of truth for the limit; keep the default display if it is unavailable.
+      }
+    }
+
+    void loadUsage();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <section className="y2k-profile-usage" aria-label={`${remaining} of ${limit} daily requests available`}>
+      <div className="y2k-profile-usage-label">
+        <span>Daily requests</span>
+        <strong>{remaining} of {limit} available</strong>
+      </div>
+      <div
+        className="y2k-usage-meter"
+        role="progressbar"
+        aria-label="Daily requests available"
+        aria-valuemin={0}
+        aria-valuemax={limit}
+        aria-valuenow={remaining}
+      >
+        {Array.from({ length: limit }, (_, index) => (
+          <span key={index} className={index < remaining ? 'is-available' : 'is-used'} />
+        ))}
+      </div>
+      <p>{used} used today · {limit} requests per day</p>
+    </section>
+  );
+}
+
 export function WorkspaceSidebar() {
   const { data: session } = authClient.useSession();
   const name = session?.user.name || 'Your';
@@ -33,7 +101,7 @@ export function WorkspaceSidebar() {
           <div className="y2k-profile-avatar" aria-hidden="true">c</div>
           <h1>{name}</h1>
           <p>{email}</p>
-          <p className="y2k-profile-status">Ready to check lyrics</p>
+          <DailyUsageMeter />
         </div>
       </WorkspaceWindow>
 
