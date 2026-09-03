@@ -2,6 +2,7 @@
 
 import { useApiFetch } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
+import { WorkspaceFrame } from '@/components/WorkspaceChrome';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
@@ -36,7 +37,7 @@ type Job = {
 };
 
 const JOB_LABELS: Record<Job['job_type'], string> = {
-  full: 'Full project',
+  full: 'Full pipeline',
   acousti: 'Acousti identification',
   demucs: 'Demucs vocal split',
   whisper: 'Whisper transcription',
@@ -104,10 +105,8 @@ export default function JobDetailPage() {
   const accuracy = job.accuracy == null ? null : Number(job.accuracy);
 
   return (
-    <main className="mx-auto min-h-[calc(100vh-9rem)] w-full max-w-5xl px-5 py-12 sm:px-8 sm:py-16">
-      <Link href="/jobs" className="text-sm text-zinc-500 transition hover:text-white">← My jobs</Link>
-
-      <header className="mt-8 rounded-3xl border border-white/10 bg-white/[0.045] p-7 sm:p-9">
+    <WorkspaceFrame crumb={`Job #${job.id}`}>
+      <header className="y2k-panel-window rounded-3xl border border-white/10 bg-white/[0.045] p-7 sm:p-9" data-window-title="Job Details">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -120,10 +119,10 @@ export default function JobDetailPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {job.status === 'failed' && (
-              <button type="button" onClick={retry} disabled={acting} className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-zinc-950 disabled:opacity-60">Run again</button>
+              <button type="button" onClick={retry} disabled={acting} className="y2k-button rounded-xl px-4 py-2.5 text-sm font-semibold">Run again</button>
             )}
             {TERMINAL.has(job.status) && (
-              <button type="button" onClick={remove} disabled={acting} className="rounded-xl border border-red-400/25 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-400/10 disabled:opacity-60">Delete job</button>
+              <button type="button" onClick={remove} disabled={acting} className="y2k-button-danger rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-60">Delete job</button>
             )}
           </div>
         </div>
@@ -131,7 +130,7 @@ export default function JobDetailPage() {
         {actionError && <p className="mt-4 text-sm text-red-200">{actionError}</p>}
       </header>
 
-      <section className="mt-6 rounded-3xl border border-white/10 bg-white/[0.035] p-7 sm:p-9">
+      <section className="y2k-panel-window rounded-3xl border border-white/10 bg-white/[0.035] p-7 sm:p-9" data-window-title="Progress">
         <h2 className="text-lg font-semibold text-white">Progress</h2>
         <ol className="mt-6 grid gap-3 sm:grid-cols-2">
           {job.steps.map((step, index) => {
@@ -150,17 +149,17 @@ export default function JobDetailPage() {
       </section>
 
       {job.status === 'completed' && (
-        <section className="mt-6 rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/[0.08] to-transparent p-7 sm:p-9">
+        <section className="y2k-panel-window rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/[0.08] to-transparent p-7 sm:p-9" data-window-title="Result">
           <h2 className="text-lg font-semibold text-white">Result</h2>
           {job.song_id ? (
             <div className="mt-5">
               <p className="max-w-2xl text-sm leading-6 text-zinc-400">{job.cache_hit ? 'Clankr found this fingerprint in the global cache and added the existing Song to your library.' : 'The full pipeline completed and created a canonical Song.'}</p>
-              <Link href={`/songs/${job.song_id}`} className="mt-5 inline-flex rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-200">Open song result</Link>
+              <Link href={`/songs/${job.song_id}`} className="y2k-button mt-5 inline-flex rounded-xl px-5 py-2.5 text-sm font-semibold">Open song result</Link>
             </div>
           ) : job.job_type === 'demucs' ? (
             <div className="mt-5">
               <p className="text-sm text-zinc-400">The isolated vocal stem is ready.</p>
-              <a href={`/api/jobs/${job.id}/artifact`} className="mt-5 inline-flex rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-zinc-950">Download vocal stem</a>
+              <a href={`/api/jobs/${job.id}/artifact`} className="y2k-button mt-5 inline-flex rounded-xl px-5 py-2.5 text-sm font-semibold">Download vocal stem</a>
             </div>
           ) : job.job_type === 'whisper' ? (
             <div className="mt-5 whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-zinc-200">{job.lyrics || 'No transcript was returned.'}</div>
@@ -181,6 +180,6 @@ export default function JobDetailPage() {
           )}
         </section>
       )}
-    </main>
+    </WorkspaceFrame>
   );
 }

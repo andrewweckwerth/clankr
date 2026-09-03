@@ -1,6 +1,7 @@
 'use client';
 
 import { useApiFetch } from '@/lib/api';
+import { WorkspaceWindow } from '@/components/WorkspaceChrome';
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
 import useSWR from 'swr';
@@ -17,13 +18,12 @@ type Song = {
 
 type SongListProps = {
   title: string;
-  description: string;
   url: string;
   emptyMessage: string;
   library?: boolean;
 };
 
-function SongList({ title, description, url, emptyMessage, library = false }: SongListProps) {
+function SongList({ title, url, emptyMessage, library = false }: SongListProps) {
   const apiFetch = useApiFetch();
   const [removing, setRemoving] = useState<number | null>(null);
   const fetcher = useCallback(async (requestUrl: string): Promise<Song[]> => {
@@ -45,71 +45,70 @@ function SongList({ title, description, url, emptyMessage, library = false }: So
   };
 
   return (
-    <section className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-semibold text-white">{title}</h2>
-        <p className="mt-2 text-sm leading-6 text-zinc-400">{description}</p>
-      </div>
-
-      {error && <p className="rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">Failed to load songs.</p>}
-      {!error && !data && <p className="text-sm text-zinc-500">Loading songs…</p>}
-      {!error && data?.length === 0 && <p className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-zinc-500">{emptyMessage}</p>}
+    <section className="y2k-window-stack">
+      {error && (
+        <WorkspaceWindow title={title}>
+          <p className="text-red-200">Failed to load songs.</p>
+        </WorkspaceWindow>
+      )}
+      {!error && !data && (
+        <WorkspaceWindow title={title}>
+          <p className="text-zinc-500">Loading songs…</p>
+        </WorkspaceWindow>
+      )}
+      {!error && data?.length === 0 && (
+        <WorkspaceWindow title={title}>
+          <p className="py-8 text-center text-sm text-zinc-500">{emptyMessage}</p>
+        </WorkspaceWindow>
+      )}
 
       {data && data.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {data.map((song) => {
-            const accuracy = song.accuracy == null ? null : Number(song.accuracy);
-            return (
-              <article key={song.id} className="relative rounded-2xl border border-white/10 bg-white/[0.045] p-5 transition hover:border-emerald-300/30 hover:bg-white/[0.065]">
-                <Link href={`/songs/${song.id}`} className="block pr-12">
-                  <h3 className="truncate text-lg font-semibold text-white">{song.title || 'Untitled'}</h3>
-                  <p className="mt-1 text-sm text-zinc-400">{song.artist || 'Unknown artist'}</p>
-                  <p className="mt-4 line-clamp-2 text-sm italic leading-6 text-zinc-500">{song.lyrics || 'No lyrics'}</p>
-                  <p className="mt-4 text-sm text-zinc-300">
-                    {song.classification || 'Not classified'}
-                    {accuracy != null && Number.isFinite(accuracy) && <span className="ml-1 text-zinc-500">· {(accuracy * 100).toFixed(1)}%</span>}
-                  </p>
-                  {song.submission_count != null && <p className="mt-2 text-xs text-zinc-600">Submitted {song.submission_count} {song.submission_count === 1 ? 'time' : 'times'}</p>}
-                </Link>
-                {library && (
-                  <button
-                    type="button"
-                    aria-label={`Remove ${song.title || 'song'} from library`}
-                    title="Remove from library"
-                    disabled={removing === song.id}
-                    onClick={() => void removeFromLibrary(song)}
-                    className="absolute right-4 top-4 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-zinc-500 transition hover:border-red-400/30 hover:text-red-200 disabled:opacity-50"
-                  >
-                    Remove
-                  </button>
-                )}
-              </article>
-            );
-          })}
+        <div className="y2k-window-grid">
+            {data.map((song) => {
+              const accuracy = song.accuracy == null ? null : Number(song.accuracy);
+              return (
+                <WorkspaceWindow key={song.id} title={song.title || 'Untitled'} className="y2k-song-window">
+                  <article className="y2k-song-card relative">
+                    <Link href={`/songs/${song.id}`} className="group block pr-14">
+                      <h3 className="sr-only">{song.title || 'Untitled'}</h3>
+                      <p className="mt-1 text-sm text-zinc-400">{song.artist || 'Unknown artist'}</p>
+                      <p className="mt-4 line-clamp-2 text-sm italic leading-6 text-zinc-500">{song.lyrics || 'No lyrics'}</p>
+                      <p className="mt-4 text-sm text-zinc-300">
+                        {song.classification || 'Not classified'}
+                        {accuracy != null && Number.isFinite(accuracy) && <span className="ml-1 text-zinc-500">· {(accuracy * 100).toFixed(1)}%</span>}
+                      </p>
+                      {song.submission_count != null && <p className="mt-2 text-xs text-zinc-600">Submitted {song.submission_count} {song.submission_count === 1 ? 'time' : 'times'}</p>}
+                      {!library && <span className="absolute right-0 top-0 text-sm text-zinc-400 transition group-hover:translate-x-1 group-hover:text-emerald-200" aria-hidden="true">→</span>}
+                    </Link>
+                  {library && (
+                    <button
+                      type="button"
+                      aria-label={`Remove ${song.title || 'song'} from library`}
+                      title="Remove from library"
+                      disabled={removing === song.id}
+                      onClick={() => void removeFromLibrary(song)}
+                      className="y2k-button-danger absolute right-0 top-0 px-2 py-1 text-xs disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  )}
+                  </article>
+                </WorkspaceWindow>
+              );
+            })}
         </div>
       )}
     </section>
   );
 }
 
-export default function ProcessedSongs() {
+export default function ProcessedSongs({ view }: { view: 'mine' | 'all' }) {
   return (
-    <div className="space-y-14">
-      <SongList
-        title="Your library"
-        description="Songs claimed through a completed full project or an Acousti cache hit. Removing one only changes your library."
-        url="/api/songs/mine"
-        emptyMessage="Your library is empty. Complete a project to add a song."
-        library
-      />
-      <div className="border-t border-white/10 pt-12">
-        <SongList
-          title="Global catalog"
-          description="The canonical recordings Clankr can reuse by fingerprint without processing them again."
-          url="/api/songs"
-          emptyMessage="No canonical songs have been processed yet."
-        />
-      </div>
-    </div>
+    <SongList
+      title={view === 'mine' ? 'Your Library' : 'All Songs'}
+      url={view === 'mine' ? '/api/songs/mine' : '/api/songs'}
+      emptyMessage={view === 'mine' ? 'Your library is empty. Complete a project to add a song.' : 'No canonical songs have been processed yet.'}
+      library={view === 'mine'}
+    />
   );
 }

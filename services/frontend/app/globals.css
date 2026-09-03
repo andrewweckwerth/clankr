@@ -1,41 +1,780 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0c0e12;
+  --surface: rgb(18 25 36 / 0.92);
+  --surface-muted: rgb(28 39 54 / 0.94);
+  --ink: #edf2f7;
+  --muted: #a6b1c2;
+  --line: #050607;
+  --line-soft: #3b5d7f;
+  --accent: #4b9bd0;
+  --accent-ink: #143149;
+  --window-title: #3e7eae;
+  --window-title-deep: #2a6594;
+  --control-border: #75add4;
+  --control: #285f8b;
+  --control-deep: #17466e;
+  --control-hover: #397eae;
+  --control-hover-deep: #275f8f;
+  --control-highlight: #b7ddf5;
+  --teal: var(--accent);
+  --teal-deep: var(--accent);
+  --blue: #62a9d7;
+  --blue-deep: #aedaf3;
+  --mint: var(--accent);
+  --danger: #ef6868;
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  /* --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono); */
+  --color-foreground: var(--ink);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
-body {
+html {
+  min-width: 320px;
   background: var(--background);
-  color: var(--foreground);
-  /* font-family: Arial, Helvetica, sans-serif; */
+}
+
+body.y2k-page {
+  min-height: 100vh;
+  background-color: var(--background);
+  background-image:
+    linear-gradient(180deg, rgb(5 8 12 / 0.7), rgb(5 8 12 / 0.88)),
+    url("/clankr-space-background.png");
+  background-position: center, center;
+  background-size: cover, cover;
+  background-attachment: fixed;
+  color: #ecf3fb;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: var(--mint);
+  color: var(--accent-ink);
+}
+
+/* Shared surfaces keep the existing routes and controls intact while giving them
+   the boxed, desktop-web treatment used by the workspace below. */
+.y2k-page .text-white,
+.y2k-page .text-zinc-100,
+.y2k-page .text-zinc-200,
+.y2k-page .text-zinc-300,
+.y2k-page .text-zinc-400,
+.y2k-page .text-zinc-500,
+.y2k-page .text-zinc-600,
+.y2k-page .text-zinc-950 {
+  color: var(--ink) !important;
+}
+
+.y2k-page .text-zinc-400,
+.y2k-page .text-zinc-500,
+.y2k-page .text-zinc-600 {
+  color: var(--muted) !important;
+}
+
+.y2k-page .text-violet-300,
+.y2k-page .text-cyan-300,
+.y2k-page .text-emerald-300,
+.y2k-page .text-amber-300 {
+  color: var(--mint) !important;
+}
+
+.y2k-page .text-violet-200,
+.y2k-page .text-emerald-200 {
+  color: var(--mint) !important;
+}
+
+.y2k-page .text-red-200 {
+  color: var(--danger) !important;
+}
+
+.y2k-page [class*="border-white/"],
+.y2k-page [class*="border-zinc-"] {
+  border-color: var(--line-soft) !important;
+}
+
+.y2k-page [class*="border-violet-"] {
+  border-color: #568fc0 !important;
+}
+
+.y2k-page [class*="border-emerald-"] {
+  border-color: var(--accent) !important;
+}
+
+.y2k-page [class*="bg-emerald-"] {
+  background-color: rgb(75 155 208 / 0.16) !important;
+}
+
+.y2k-page [class*="border-red-"] {
+  border-color: #ad5656 !important;
+}
+
+.y2k-page [class*="bg-white/"],
+.y2k-page [class*="bg-black/"] {
+  background-color: var(--surface) !important;
+}
+
+.y2k-page [class*="bg-gradient"] {
+  background-image: none !important;
+  background-color: var(--surface) !important;
+}
+
+.y2k-page [class*="rounded-"] {
+  border-radius: 0 !important;
+}
+
+.y2k-page [class*="shadow-"] {
+  box-shadow: none !important;
+}
+
+.y2k-page h1,
+.y2k-page h2,
+.y2k-page h3 {
+  color: #edf4fb !important;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+}
+
+.y2k-window h1,
+.y2k-window h2,
+.y2k-window h3,
+.y2k-page [class*="bg-white/"] h1,
+.y2k-page [class*="bg-white/"] h2,
+.y2k-page [class*="bg-white/"] h3,
+.y2k-page [class*="bg-black/"] h1,
+.y2k-page [class*="bg-black/"] h2,
+.y2k-page [class*="bg-black/"] h3,
+.y2k-page main > header[class*="rounded"] h1,
+.y2k-page main > header[class*="rounded"] h2,
+.y2k-page main > section[class*="rounded"] h1,
+.y2k-page main > section[class*="rounded"] h2,
+.y2k-page main > section[class*="rounded"] h3,
+.y2k-page main article h1,
+.y2k-page main article h2,
+.y2k-page main article h3 {
+  color: var(--ink) !important;
+}
+
+.y2k-page a {
+  color: var(--blue-deep);
+}
+
+.y2k-page a:hover {
+  color: var(--mint) !important;
+}
+
+.y2k-page main > a {
+  color: var(--blue-deep);
+}
+
+.y2k-page main.text-zinc-400,
+.y2k-page main.text-zinc-500 {
+  color: #c3d5d5 !important;
+}
+
+.y2k-page button,
+.y2k-page [role="button"] {
+  border-radius: 0 !important;
+}
+
+.y2k-page button:focus-visible,
+.y2k-page a:focus-visible,
+.y2k-page input:focus-visible,
+.y2k-page textarea:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 2px;
 }
 
 .auth-input {
   width: 100%;
-  border: 1px solid rgb(255 255 255 / 0.12);
-  border-radius: 0.875rem;
-  background: rgb(255 255 255 / 0.05);
-  padding: 0.75rem 0.875rem;
-  color: white;
+  border: 1px solid #476f93;
+  border-radius: 0;
+  background: #0e1722;
+  box-shadow: inset 1px 1px 0 rgb(0 0 0 / 0.5);
+  padding: 0.6rem 0.7rem;
+  color: var(--ink);
   outline: none;
 }
 
 .auth-input:focus {
-  border-color: rgb(167 139 250 / 0.8);
-  box-shadow: 0 0 0 3px rgb(139 92 246 / 0.15);
+  border-color: var(--teal);
+  box-shadow: 0 0 0 2px rgb(75 155 208 / 0.35);
+}
+
+.auth-input::placeholder {
+  color: #7f9db7;
+}
+
+.y2k-button,
+.y2k-primary-button {
+  border: 1px solid var(--control-border) !important;
+  background: var(--control) !important;
+  box-shadow: inset 1px 1px 0 #a8d3ee, inset -1px -1px 0 #143a5b, 1px 1px 0 rgb(0 0 0 / 0.45) !important;
+  color: #f4f8ff !important;
+  text-decoration: none;
+  text-shadow: 1px 1px 0 #0c2b33;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.y2k-button:hover,
+.y2k-primary-button:hover {
+  border-color: var(--control-highlight) !important;
+  background: var(--control-hover) !important;
+  color: white !important;
+}
+
+.y2k-page a.y2k-button:hover,
+.y2k-page a.y2k-primary-button:hover {
+  color: white !important;
+}
+
+.y2k-button:disabled,
+.y2k-primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.y2k-button-secondary {
+  border: 1px solid #496c8d !important;
+  background: #263b51 !important;
+  box-shadow: inset 1px 1px 0 #718da6, inset -1px -1px 0 #142638 !important;
+  color: #eaf2ff !important;
+  text-decoration: none;
+  text-shadow: 1px 1px 0 #0a0c10;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.y2k-button-secondary:hover {
+  border-color: #8fc3e3 !important;
+  background: #35536e !important;
+  color: #f4f8ff !important;
+}
+
+.y2k-button-danger {
+  border: 1px solid #b95d6d !important;
+  background: #251b21 !important;
+  color: #ffc0ca !important;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.y2k-button-danger:hover {
+  border-color: #ef8798 !important;
+  background: #3a2029 !important;
+  color: white !important;
+}
+
+/* Two-tier site chrome. */
+.y2k-header {
+  border: 0 !important;
+  background: #0d3457 !important;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.08) !important;
+}
+
+.y2k-topbar {
+  min-height: 44px;
+}
+
+.y2k-nav-band {
+  border-top: 1px solid rgb(255 255 255 / 0.14);
+  border-bottom: 1px solid #071d32;
+  background: linear-gradient(#28699a, #1b4c78);
+}
+
+.y2k-nav {
+  min-height: 40px;
+}
+
+.y2k-page .y2k-logo-mark {
+  border: 1px solid #82b7e1;
+  border-radius: 0 !important;
+  background: #1b5d8c !important;
+  box-shadow: inset 1px 1px 0 #4e8fbd !important;
+  color: white !important;
+  font-family: Georgia, serif;
+}
+
+.y2k-logo-word {
+  color: white !important;
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: normal;
+  text-shadow: 1px 1px 0 #061b31;
+}
+
+.y2k-nav-links a {
+  border-left: 1px solid rgb(255 255 255 / 0.16);
+  color: white !important;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+}
+
+.y2k-nav-links a:first-child {
+  border-left: 0;
+}
+
+.y2k-nav-links a:hover {
+  background: rgb(255 255 255 / 0.12);
+  color: #d6e9ff !important;
+}
+
+.y2k-header .text-zinc-300 {
+  color: #ddecf7 !important;
+}
+
+.y2k-page .y2k-header button,
+.y2k-page .y2k-header a.rounded-full {
+  border: 1px solid #526f91 !important;
+  background: linear-gradient(#284561, #172d45) !important;
+  box-shadow: inset 1px 1px 0 rgb(255 255 255 / 0.12) !important;
+  color: #e8f4ff !important;
+}
+
+.y2k-footer {
+  border-top: 1px solid #314b65 !important;
+  background: rgb(16 20 25 / 0.88) !important;
+}
+
+.y2k-footer,
+.y2k-footer .text-zinc-400,
+.y2k-footer .text-zinc-500 {
+  color: #aeb9c8 !important;
+}
+
+.y2k-footer a,
+.y2k-footer a:first-child {
+  color: var(--blue-deep) !important;
+  font-family: Arial, Helvetica, sans-serif;
+  font-style: normal;
+}
+
+/* Reusable MyOshi-style windows. */
+.y2k-window {
+  overflow: hidden;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  box-shadow: 3px 3px 0 rgb(0 0 0 / 0.5), inset 0 0 0 1px #355777;
+}
+
+.y2k-window-title {
+  display: flex;
+  min-height: 22px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  background: var(--window-title);
+  box-shadow: inset 0 1px 0 #8fc2e4, inset 0 -1px 0 #214c72;
+  color: #edf8ff;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.y2k-window-icon {
+  color: #d8efff;
+  font-size: 0.9rem;
+}
+
+.y2k-window-body {
+  padding: 0.85rem;
+  color: var(--ink);
+}
+
+.y2k-panel-window {
+  overflow: hidden;
+  border: 2px solid var(--line) !important;
+  background: var(--surface) !important;
+  box-shadow: inset 0 0 0 1px #355777;
+}
+
+.y2k-panel-window::before {
+  content: "✦ " attr(data-window-title);
+  display: block;
+  margin: -1.75rem -1.75rem 1.75rem;
+  padding: 0.3rem 0.65rem;
+  background: var(--window-title);
+  box-shadow: inset 0 1px 0 #8fc2e4, inset 0 -1px 0 #214c72;
+  color: #edf8ff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.y2k-auth-window::before {
+  margin: -2rem -2rem 2rem;
+}
+
+.y2k-analysis-layout {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.y2k-analysis-layout > * {
+  min-width: 0;
+  box-shadow: 3px 3px 0 rgb(0 0 0 / 0.5);
+}
+
+.y2k-workspace {
+  max-width: 58rem !important;
+}
+
+.y2k-breadcrumb {
+  margin-bottom: 0.65rem;
+  border: 1px solid #456f94;
+  background: rgb(23 28 36 / 0.84);
+  padding: 0.6rem 0.75rem;
+  box-shadow: inset 1px 1px 0 rgb(111 155 192 / 0.24);
+  color: #b7dcf5;
+  font-size: 0.74rem;
+}
+
+.y2k-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.72fr) minmax(0, 1.55fr);
+  align-items: start;
+  gap: 0.65rem;
+}
+
+.y2k-workspace-sidebar,
+.y2k-workspace-main {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.y2k-profile {
+  text-align: center;
+}
+
+.y2k-profile-avatar {
+  display: flex;
+  width: 5.7rem;
+  height: 5.7rem;
+  margin: 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--line);
+  background: #326895;
+  box-shadow: inset 0 0 0 3px #add9f3, inset -1px -1px 0 #1a4269;
+  color: white;
+  font-family: Georgia, serif;
+  font-size: 3rem;
+  font-weight: 700;
+}
+
+.y2k-profile h1 {
+  margin-top: 0.7rem;
+  color: #dcefff !important;
+  font-size: 1.2rem;
+}
+
+.y2k-profile p {
+  margin-top: 0.3rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.y2k-profile-status {
+  margin-top: 0.8rem;
+  border: 1px solid var(--accent);
+  background: #112a42;
+  padding: 0.55rem;
+  color: var(--mint);
+  font-size: 0.75rem;
+}
+
+.y2k-shortcut-list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.y2k-shortcut-list a {
+  display: block;
+  padding: 0.45rem 0.55rem;
+  color: var(--blue-deep) !important;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.y2k-sidebar-info {
+  display: grid;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+
+.y2k-sidebar-info p {
+  margin: 0;
+}
+
+.y2k-sidebar-info a {
+  color: var(--blue-deep);
+  font-weight: 700;
+}
+
+.y2k-sidebar-info small {
+  color: #71869d;
+  font-size: 0.66rem;
+}
+
+.y2k-window-lead {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.y2k-window-action {
+  display: block;
+  margin-top: 0.8rem;
+  text-decoration: none;
+}
+
+.y2k-window-action strong {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 0.75rem;
+  border: 1px solid var(--control-border);
+  background: var(--control);
+  box-shadow: inset 1px 1px 0 #a8d3ee, inset -1px -1px 0 #143a5b, 1px 1px 0 rgb(0 0 0 / 0.45);
+  padding: 0.38rem 0.62rem;
+  color: #f4f8ff !important;
+  font-size: 0.8rem;
+  text-decoration: none;
+  text-shadow: 1px 1px 0 #0c2b33;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.y2k-window-action:hover strong {
+  border-color: var(--control-highlight);
+  background: var(--control-hover);
+}
+
+.y2k-window-action span,
+.y2k-tool-action span {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.y2k-tool-action {
+  position: relative;
+  display: block;
+  min-height: 0;
+  text-decoration: none;
+}
+
+.y2k-tool-action span {
+  margin-top: 0;
+}
+
+.y2k-tool-action p {
+  max-width: 42rem;
+  margin: 0.7rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.y2k-tool-action .y2k-tool-cta {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 0.8rem;
+  border: 1px solid var(--control-border);
+  background: var(--control);
+  box-shadow: inset 1px 1px 0 #a8d3ee, inset -1px -1px 0 #143a5b, 1px 1px 0 rgb(0 0 0 / 0.45);
+  padding: 0.32rem 0.55rem;
+  color: #f4f8ff;
+  font-size: 0.73rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-shadow: 1px 1px 0 #0c2b33;
+}
+
+.y2k-tool-action:hover .y2k-tool-cta {
+  border-color: var(--control-highlight);
+  background: var(--control-hover);
+  color: white;
+}
+
+.y2k-job-link {
+  padding: 0.1rem;
+}
+
+.y2k-window.y2k-song-window {
+  border: 1px solid var(--line-soft);
+  box-shadow: none;
+}
+
+.y2k-page main article.y2k-song-card {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.y2k-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid #3b5d7f;
+}
+
+.y2k-tool-link {
+  min-height: 6.3rem;
+  border-right: 1px solid #3b5d7f;
+  border-bottom: 1px solid #3b5d7f;
+  background: #172230;
+  padding: 0.7rem;
+  text-decoration: none;
+}
+
+.y2k-tool-link:nth-child(2n) {
+  border-right: 0;
+}
+
+.y2k-tool-link:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.y2k-tool-link h2 {
+  color: #c7e8fb !important;
+  font-size: 0.98rem;
+  text-decoration: underline;
+}
+
+.y2k-tool-link p {
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.y2k-tool-link:hover {
+  background: #1e354c;
+}
+
+/* Standalone pages retain their existing forms but inherit the same window-like shell. */
+.y2k-page main > header[class*="rounded"],
+.y2k-page main > section[class*="rounded"],
+.y2k-page main article,
+.y2k-page main details {
+  border-color: var(--line) !important;
+  box-shadow: 3px 3px 0 rgb(0 0 0 / 0.28) !important;
+}
+
+.y2k-directory {
+  max-width: 58rem !important;
+}
+
+.y2k-directory-grid {
+  gap: 0 !important;
+  border: 2px solid var(--line);
+  background: var(--surface);
+}
+
+.y2k-page .y2k-directory-card {
+  min-height: 0 !important;
+  border: 0 !important;
+  border-right: 1px solid #3b5d7f !important;
+  border-bottom: 1px solid #3b5d7f !important;
+  background: #172230 !important;
+  padding: 1rem !important;
+}
+
+.y2k-page .y2k-directory-card:nth-child(2n) {
+  border-right: 0 !important;
+}
+
+.y2k-page .y2k-directory-card:hover {
+  background: #1e354c !important;
+}
+
+.y2k-page .y2k-tool-window {
+  position: relative;
+  min-height: 0 !important;
+  padding-top: 2.95rem !important;
+}
+
+.y2k-page .y2k-tool-window::before {
+  content: "✦ " attr(data-window-title);
+  position: absolute;
+  inset: 0 0 auto;
+  padding: 0.35rem 0.65rem;
+  background: var(--window-title);
+  box-shadow: inset 0 1px 0 #8fc2e4, inset 0 -1px 0 #214c72;
+  color: #edf8ff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.y2k-page .y2k-directory-heading {
+  margin-top: 0.35rem !important;
+  color: var(--blue-deep) !important;
+  font-size: 1.05rem !important;
+  text-decoration: underline;
+}
+
+.y2k-directory-arrow {
+  color: var(--mint) !important;
+}
+
+.y2k-window-stack,
+.y2k-window-grid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+@media (max-width: 767px) {
+  .y2k-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .y2k-workspace-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .y2k-workspace-sidebar > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 640px) {
+  .y2k-panel-window::before {
+    margin: -2.25rem -2.25rem 2.25rem;
+  }
+
+  .y2k-auth-window::before {
+    margin: -2.5rem -2.5rem 2.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .y2k-workspace-sidebar,
+  .y2k-tool-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .y2k-tool-link,
+  .y2k-tool-link:nth-child(2n) {
+    border-right: 0;
+    border-bottom: 1px solid #3b5d7f;
+  }
+
+  .y2k-tool-link:last-child {
+    border-bottom: 0;
+  }
 }

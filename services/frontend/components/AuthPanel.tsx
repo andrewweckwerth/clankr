@@ -83,7 +83,7 @@ export default function AuthPanel() {
         type="button"
         onClick={handleGoogle}
         disabled={pending}
-        className="flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+        className="y2k-button flex w-full items-center justify-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed"
       >
         <span className="text-base font-bold text-blue-600">G</span>
         Continue with Google
@@ -102,7 +102,7 @@ export default function AuthPanel() {
             setMode("sign-in");
             setError(null);
           }}
-          className={`rounded-lg px-3 py-2 font-medium transition ${mode === "sign-in" ? "bg-white text-zinc-950" : "text-zinc-400 hover:text-white"}`}
+          className={`rounded-lg border px-3 py-2 font-medium transition ${mode === "sign-in" ? "border-[#75add4] bg-[#285f8b] text-white" : "border-transparent text-zinc-400 hover:border-[#476f93] hover:text-white"}`}
         >
           Sign in
         </button>
@@ -112,7 +112,7 @@ export default function AuthPanel() {
             setMode("sign-up");
             setError(null);
           }}
-          className={`rounded-lg px-3 py-2 font-medium transition ${mode === "sign-up" ? "bg-white text-zinc-950" : "text-zinc-400 hover:text-white"}`}
+          className={`rounded-lg border px-3 py-2 font-medium transition ${mode === "sign-up" ? "border-[#75add4] bg-[#285f8b] text-white" : "border-transparent text-zinc-400 hover:border-[#476f93] hover:text-white"}`}
         >
           Create account
         </button>
@@ -140,7 +140,7 @@ export default function AuthPanel() {
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-2xl bg-violet-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
+          className="y2k-button w-full rounded-2xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed"
         >
           {pending ? "Please wait…" : mode === "sign-in" ? "Sign in" : "Create account"}
         </button>

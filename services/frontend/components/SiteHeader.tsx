@@ -3,19 +3,20 @@ import AuthControls from "@/components/AuthControls";
 
 export default function SiteHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0d]/85 backdrop-blur-xl">
-      <nav
-        aria-label="Main navigation"
-        className="mx-auto flex h-18 w-full max-w-6xl items-center justify-between gap-6 px-5 sm:px-8"
-      >
+    <header className="y2k-header sticky top-0 z-40 border-b border-white/10">
+      <div className="y2k-topbar mx-auto flex w-full max-w-6xl items-center justify-between gap-6 px-5 sm:px-8">
         <Link href="/" className="group flex items-center gap-2.5" aria-label="Clankr home">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-500 text-lg font-black text-white shadow-lg shadow-violet-500/25 transition group-hover:bg-violet-400">
+          <span className="y2k-logo-mark flex h-8 w-8 items-center justify-center rounded-xl bg-[#28496f] text-lg font-black text-white shadow-lg shadow-[#28496f]/25 transition group-hover:bg-[#3d6799]">
             c
           </span>
-          <span className="text-lg font-semibold tracking-tight text-white">clankr</span>
+          <span className="y2k-logo-word text-lg font-semibold tracking-tight text-white">clankr</span>
         </Link>
 
-        <div className="hidden items-center gap-6 text-sm text-zinc-400 md:flex">
+        <AuthControls />
+      </div>
+
+      <nav aria-label="Main navigation" className="y2k-nav-band">
+        <div className="y2k-nav y2k-nav-links mx-auto flex w-full max-w-6xl items-center gap-0 overflow-x-auto px-5 sm:px-8">
           <Link className="transition hover:text-white" href="/projects/new">
             Full pipeline
           </Link>
@@ -23,14 +24,12 @@ export default function SiteHeader() {
             Tools
           </Link>
           <Link className="transition hover:text-white" href="/jobs">
-            My jobs
+            My Jobs
           </Link>
           <Link className="transition hover:text-white" href="/songs">
             Songs
           </Link>
         </div>
-
-        <AuthControls />
       </nav>
     </header>
   );
