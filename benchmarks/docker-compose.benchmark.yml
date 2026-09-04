@@ -1,0 +1,69 @@
+# Run this only together with docker-compose.prod.yml, using a unique Compose
+# project name. It inherits the production application images but creates
+# separate project-scoped PostgreSQL, Redis, and MinIO volumes.
+x-benchmark-logging: &benchmark-logging
+  driver: json-file
+  options:
+    max-size: "25m"
+    max-file: "10"
+
+services:
+  redis:
+    restart: "no"
+    logging: *benchmark-logging
+
+  db:
+    restart: "no"
+    logging: *benchmark-logging
+
+  minio:
+    restart: "no"
+    logging: *benchmark-logging
+
+  minio_init:
+    restart: "no"
+    logging: *benchmark-logging
+
+  orchestrator:
+    restart: "no"
+    logging: *benchmark-logging
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      CLANKR_LOG_ENVIRONMENT: benchmark
+      CLANKR_RUN_KIND: stress_test
+      BENCHMARK_RUN_ID: ${BENCHMARK_RUN_ID}
+      RELEASE_SHA: ${IMAGE_TAG:-unknown}
+
+  demucs:
+    restart: "no"
+    logging: *benchmark-logging
+    environment:
+      CLANKR_LOG_ENVIRONMENT: benchmark
+      CLANKR_RUN_KIND: stress_test
+      BENCHMARK_RUN_ID: ${BENCHMARK_RUN_ID}
+      RELEASE_SHA: ${IMAGE_TAG:-unknown}
+
+  benchmark-runner:
+    build: ./benchmarks/runner
+    image: clankr-benchmark-runner:local
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+      minio_init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_DSN: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+      BENCHMARK_RUN_ID: ${BENCHMARK_RUN_ID}
+    volumes:
+      - ./benchmarks/fixtures:/fixtures:ro
+      - ./benchmarks/results:/results
+    working_dir: /app
