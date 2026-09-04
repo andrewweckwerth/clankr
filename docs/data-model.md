@@ -138,3 +138,12 @@ Removing a Song from a user's library deletes only the `user_songs` row.
 - `database/init.sql` uses `CREATE TABLE IF NOT EXISTS`; changing an existing database requires an explicit migration or controlled rebuild.
 - Database cascades do not delete MinIO objects automatically; the job deletion
   endpoint performs explicit best-effort cleanup.
+
+## Isolated benchmark data
+
+The stress-test harness creates `benchmark_runs`, `benchmark_jobs`, and
+`benchmark_events` in its own fresh benchmark PostgreSQL database at run time.
+Those tables are intentionally not part of the production initialization schema:
+they link a benchmark's metadata and imported structured logs to the ordinary
+`jobs` and `job_steps` timing rows without adding database writes to application
+jobs. See [benchmarking.md](benchmarking.md) for retention and analysis details.

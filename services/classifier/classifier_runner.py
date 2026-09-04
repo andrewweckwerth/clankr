@@ -4,6 +4,7 @@ import json
 import logging
 import asyncio
 import socket
+import time
 import uuid
 from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any
@@ -13,11 +14,12 @@ from pydantic import BaseModel
 import httpx
 from redis.asyncio import Redis
 from redis.exceptions import ResponseError
+from structured_logging import configure_logging, log_event
 
 # ----------------------------
 # Logging
 # ----------------------------
-logging.basicConfig(level=logging.INFO, format="%(levelname)-9s %(message)s")
+configure_logging("classifier")
 logger = logging.getLogger("classify")
 
 # ----------------------------
@@ -247,10 +249,10 @@ async def process_task(task: dict) -> dict:
     if not lyrics or not lyrics.strip():
         raise ValueError("Classification task is missing lyrics")
 
-    logger.info("🟦Classifying Lyrics (%s) model=%s", AI_PROVIDER, AI_MODEL)
+    log_event(logger, "classifier.requested", provider=AI_PROVIDER, model=AI_MODEL)
     judge = await _ask_llm(lyrics)
     out = _collapse_to_two_fields(judge)
-    logger.info("🟦Result: %s (accuracy=%s)", out["classification"], out["accuracy"])
+    log_event(logger, "classifier.result", classification=out["classification"], confidence=out["accuracy"])
     return out
 
 
@@ -294,24 +296,47 @@ async def publish_event(redis: Redis, event: dict) -> None:
 
 async def worker_loop(redis: Redis, stop: asyncio.Event) -> None:
     consumer = f"classifier-{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
-    logger.info("Redis worker starting: %s", consumer)
+    log_event(logger, "worker.started", worker_id=consumer, stream=REDIS_STREAM)
     while not stop.is_set():
         message = await next_message(redis, consumer)
         if not message:
             continue
         message_id, fields = message
         task = json.loads(fields["payload"])
-        base_event = {"task_id": task["task_id"], "job_id": task["job_id"], "stage": "classify"}
+        base_event = {
+            "task_id": task["task_id"],
+            "job_id": task["job_id"],
+            "stage": "classify",
+            "worker_id": consumer,
+            "attempt": task.get("attempt"),
+        }
+        if task.get("benchmark_run_id"):
+            base_event["benchmark_run_id"] = task["benchmark_run_id"]
+        log_event(logger, "task.claimed", **base_event)
+        started_at = time.perf_counter()
         try:
             await publish_event(redis, {**base_event, "event": "started"})
+            log_event(logger, "stage.started", **base_event)
             result = await process_task(task)
-            await publish_event(redis, {**base_event, "event": "completed", "ok": True, "result": result})
+            duration_ms = round((time.perf_counter() - started_at) * 1000)
+            await publish_event(redis, {**base_event, "event": "completed", "ok": True, "result": result, "duration_ms": duration_ms})
+            log_event(logger, "stage.completed", duration_ms=duration_ms, **base_event)
         except Exception as exc:
             logger.exception("Classifier task %s failed", task.get("task_id"))
+            duration_ms = round((time.perf_counter() - started_at) * 1000)
             await publish_event(
                 redis,
-                {**base_event, "event": "completed", "ok": False, "error": str(exc), "result": {}},
+                {
+                    **base_event,
+                    "event": "completed",
+                    "ok": False,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                    "result": {},
+                    "duration_ms": duration_ms,
+                },
             )
+            log_event(logger, "stage.failed", error_type=type(exc).__name__, duration_ms=duration_ms, **base_event)
         await redis.xack(REDIS_STREAM, REDIS_GROUP, message_id)
 
 

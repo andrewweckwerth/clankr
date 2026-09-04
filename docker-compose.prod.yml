@@ -14,6 +14,11 @@ x-redis-env: &redis-env
   REDIS_RESULT_STREAM: ${REDIS_RESULT_STREAM:-clankr:events:results}
   REDIS_VISIBILITY_TIMEOUT_MS: ${REDIS_VISIBILITY_TIMEOUT_MS:-3600000}
 
+x-logging-env: &logging-env
+  CLANKR_LOG_ENVIRONMENT: ${CLANKR_LOG_ENVIRONMENT:-production}
+  CLANKR_RUN_KIND: ${CLANKR_RUN_KIND:-normal}
+  RELEASE_SHA: ${IMAGE_TAG:-unknown}
+
 x-logging: &default-logging
   driver: json-file
   options:
@@ -71,6 +76,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     environment:
+      <<: *logging-env
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       CHOKIDAR_USEPOLLING: "true"
     # remove host port publish:
@@ -162,7 +168,7 @@ services:
     build: ./services/demucs
     restart: unless-stopped
     environment:
-      <<: [*minio-env, *redis-env]
+      <<: [*minio-env, *redis-env, *logging-env]
     depends_on:
       minio_init:
         condition: service_completed_successfully
@@ -185,7 +191,7 @@ services:
     build: ./services/whisper
     restart: unless-stopped
     environment:
-      <<: [*minio-env, *redis-env]
+      <<: [*minio-env, *redis-env, *logging-env]
     depends_on:
       minio_init:
         condition: service_completed_successfully
@@ -229,7 +235,7 @@ services:
       retries: 30
       start_period: 20s
     environment:
-      <<: [*minio-env, *redis-env]
+      <<: [*minio-env, *redis-env, *logging-env]
       AI_BASE_URL: "http://ollama:11434"
       AI_MODEL: "qwen2.5:3b-instruct"   # or whatever LocalAI exposes
       AI_API_KEY: "secret"
@@ -242,7 +248,7 @@ services:
     build: ./services/acousti
     restart: unless-stopped
     environment:
-      <<: [*minio-env, *redis-env]
+      <<: [*minio-env, *redis-env, *logging-env]
     depends_on:
       minio_init:
         condition: service_completed_successfully
@@ -269,7 +275,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      <<: [*minio-env, *redis-env]
+      <<: [*minio-env, *redis-env, *logging-env]
     working_dir: /app
     env_file:
       - ${ENV_FILE:-.env}
