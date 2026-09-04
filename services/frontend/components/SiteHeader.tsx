@@ -26,6 +26,9 @@ export default function SiteHeader() {
           <Link className="transition hover:text-white" href="/jobs">
             My Jobs
           </Link>
+          <Link className="transition hover:text-white" href="/jobs?view=active">
+            Job Queue
+          </Link>
           <Link className="transition hover:text-white" href="/songs">
             Songs
           </Link>

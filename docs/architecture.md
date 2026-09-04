@@ -64,8 +64,14 @@ Whisper accept audio, while the classifier accepts text.
   after every stage succeeds.
 - **Tools** creates one-stage standalone jobs. These results remain Jobs rather
   than becoming new Songs.
-- **My Jobs** lists all user-owned work, including running, completed, and
-  failed jobs. Failed jobs can be rerun as new jobs using their original input.
+- **My Jobs** lists a user's completed, failed, and cancelled work. Active
+  work appears only in Job Queue. Failed jobs can be rerun as new jobs using
+  their original input.
+- **All Jobs** is an authenticated history of completed jobs. It exposes only
+  operational summary fields for jobs owned by other users: job ID, type,
+  status, stage, and timestamps. Job details and actions remain owner-only.
+- **Job Queue** is the live set of all jobs with `queued` or `processing`
+  status, ordered to show work currently executing before work waiting to run.
 - **Songs** contains the global canonical catalog and each user's library
   relationship. Removing a Song from a library does not delete the canonical
   cache entry.

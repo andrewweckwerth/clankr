@@ -111,7 +111,7 @@ export default function AnalysisForm({ jobType }: { jobType: JobType }) {
           <p className="mt-3 max-w-lg text-sm leading-6 text-zinc-400">{details.description}</p>
 
           {jobType === 'full' ? (
-            <ol className="mt-8 space-y-4">
+            <ol className="mt-6 grid gap-x-8 gap-y-3 sm:grid-cols-2">
               {FULL_STAGES.map(([number, name, description]) => (
                 <li key={number} className="flex gap-4">
                   <span className="font-mono text-xs text-violet-300">{number}</span>

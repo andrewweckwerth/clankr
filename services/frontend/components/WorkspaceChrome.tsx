@@ -110,6 +110,8 @@ export function WorkspaceSidebar() {
           <li><Link className="y2k-button" href="/projects/new">Full Pipeline</Link></li>
           <li><Link className="y2k-button" href="/tools">Standalone Tools</Link></li>
           <li><Link className="y2k-button" href="/jobs">My Jobs</Link></li>
+          <li><Link className="y2k-button" href="/jobs?view=all">All Jobs</Link></li>
+          <li><Link className="y2k-button" href="/jobs?view=active">Job Queue</Link></li>
           <li><Link className="y2k-button" href="/songs">My Songs</Link></li>
           <li><Link className="y2k-button" href="/songs?view=all">All Songs</Link></li>
           <li><Link className="y2k-button" href="/account">Account Settings</Link></li>

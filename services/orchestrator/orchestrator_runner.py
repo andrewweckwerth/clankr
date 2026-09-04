@@ -21,6 +21,7 @@ from db import (
     dsn,
     get_daily_analysis_usage,
     get_job_with_steps_for_user,
+    list_shared_jobs,
     list_jobs_for_user,
     record_user_song,
     update_job,
@@ -375,13 +376,22 @@ async def download_song_artifact(
 async def list_jobs(
     request: Request,
     limit: int = Query(100, ge=1, le=200),
+    view: str = Query("mine", pattern="^(mine|all|active)$"),
     user: dict = Depends(get_current_user),
 ):
-    jobs = await list_jobs_for_user(
-        request.app.state.db_pool,
-        user["id"],
-        limit=limit,
-    )
+    if view == "mine":
+        jobs = await list_jobs_for_user(
+            request.app.state.db_pool,
+            user["id"],
+            limit=limit,
+        )
+    else:
+        jobs = await list_shared_jobs(
+            request.app.state.db_pool,
+            user["id"],
+            view=view,
+            limit=limit,
+        )
     return JSONResponse(status_code=200, content=jsonable_encoder(jobs))
 
 
