@@ -174,7 +174,58 @@ async def list_jobs_for_user(
             FROM jobs
             LEFT JOIN songs ON songs.id = jobs.song_id
             WHERE jobs.user_id = $1
+              AND jobs.status NOT IN ('queued', 'processing')
             ORDER BY jobs.created_at DESC, jobs.id DESC
+            LIMIT $2
+            """,
+            user_id,
+            limit,
+        )
+    return [dict(row) for row in rows]
+
+
+async def list_shared_jobs(
+    pool,
+    user_id: int,
+    *,
+    view: str,
+    limit: int = 100,
+) -> list[Dict[str, Any]]:
+    """Return a safe global completed-job feed or the currently active queue.
+
+    Job details remain owner-only. The shared queue intentionally withholds
+    another user's input-derived metadata and result identifiers.
+    """
+    if view not in ("all", "active"):
+        raise ValueError(f"Unsupported job queue view: {view}")
+
+    where_clause = (
+        "WHERE jobs.status IN ('queued', 'processing')"
+        if view == "active"
+        else "WHERE jobs.status = 'completed'"
+    )
+    order_clause = (
+        "ORDER BY CASE jobs.status WHEN 'processing' THEN 0 ELSE 1 END, jobs.created_at ASC, jobs.id ASC"
+        if view == "active"
+        else "ORDER BY jobs.created_at DESC, jobs.id DESC"
+    )
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""
+            SELECT jobs.id, jobs.job_type, jobs.current_stage, jobs.status,
+                   jobs.created_at, jobs.updated_at,
+                   jobs.user_id = $1 AS is_owner,
+                   CASE WHEN jobs.user_id = $1 THEN jobs.cache_hit ELSE FALSE END AS cache_hit,
+                   CASE WHEN jobs.user_id = $1 THEN jobs.title END AS title,
+                   CASE WHEN jobs.user_id = $1 THEN jobs.artist END AS artist,
+                   CASE WHEN jobs.user_id = $1 THEN jobs.song_id END AS song_id,
+                   CASE WHEN jobs.user_id = $1 THEN songs.title END AS song_title,
+                   CASE WHEN jobs.user_id = $1 THEN songs.artist END AS song_artist
+            FROM jobs
+            LEFT JOIN songs ON songs.id = jobs.song_id
+            {where_clause}
+            {order_clause}
             LIMIT $2
             """,
             user_id,

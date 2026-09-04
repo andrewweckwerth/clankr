@@ -68,9 +68,15 @@ Retrying an audio job copies its source to a new `raw/` key so the new job owns
 its artifacts independently of the failed job.
 
 `user_id` identifies the locally mapped authenticated user who submitted the
-request. Job endpoints filter by this value rather than trusting a
-client-provided numeric ID. Canonical Songs are visible in the authenticated
-global catalog, while library mutations are always scoped through `user_songs`.
+request. Job detail, retry, delete, and artifact endpoints filter by this value
+rather than trusting a client-provided numeric ID. The authenticated All Jobs
+feed includes only completed work, while Job Queue includes only queued and
+processing work. My Jobs contains a user's terminal work (completed, failed,
+and cancelled). The shared feeds intentionally expose only each other user's
+operational summary (ID, job type, status, stage, and timestamps); input-derived
+metadata, errors, results, artifacts, and detail views remain owner-only.
+Canonical Songs are visible in the authenticated global catalog, while library
+mutations are always scoped through `user_songs`.
 
 ## `job_steps`
 

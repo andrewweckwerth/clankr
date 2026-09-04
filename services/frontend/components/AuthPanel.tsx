@@ -13,9 +13,9 @@ function errorMessage(error: unknown) {
   return "Something went wrong. Please try again.";
 }
 
-export default function AuthPanel() {
+export default function AuthPanel({ initialMode = "sign-in" }: { initialMode?: AuthMode }) {
   const router = useRouter();
-  const [mode, setMode] = useState<AuthMode>("sign-in");
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
