@@ -175,7 +175,7 @@ services:
       - ${ENV_FILE:-.env}
   minio:
     logging: *default-logging
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
@@ -193,7 +193,7 @@ services:
       retries: 20
 
   minio_init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     depends_on:
       minio:
         condition: service_healthy
