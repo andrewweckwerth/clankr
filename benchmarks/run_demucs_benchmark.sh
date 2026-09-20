@@ -210,6 +210,9 @@ compose_command run --rm benchmark-runner import-events \
 compose_command run --rm benchmark-runner report \
   --run-id "$run_id" \
   --output "/results/$run_id"
+if ! python3 "$repo_root/benchmarks/analyze_benchmark.py" --run "$output_dir"; then
+  echo "Benchmark completed, but resource-chart generation failed. Raw results remain in $output_dir" >&2
+fi
 
 if [[ "$cleanup" == "true" ]]; then
   compose_command down --volumes

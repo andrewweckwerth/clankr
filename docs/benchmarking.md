@@ -170,6 +170,8 @@ logs/                     raw stdout/stderr log export for every benchmark conta
 summary.json              aggregate timings and throughput
 jobs.csv                  one row per job
 report.md                 concise comparison-ready report
+analysis.html             CPU and memory charts for the run
+analysis.json             chart-ready aggregate resource metrics
 ```
 
 The benchmark runner imports structured application JSON lines from `logs/` into
@@ -189,6 +191,20 @@ It reports p50, p95, maxima, completed/failed counts, and throughput. Compare
 the report with `docker-stats.ndjson`: if two workers improve queue wait but not
 throughput while both saturate CPU or memory, the VM is the bottleneck rather
 than a missing worker replica.
+
+### Resource charts
+
+After a run, render its local resource report without installing a Python
+package:
+
+```bash
+python3 benchmarks/analyze_benchmark.py \
+  --run benchmarks/results/<run-id>
+```
+
+This writes `analysis.html` and `analysis.json` into the same result directory.
+The HTML report graphs aggregate CPU and memory by service; a multi-threaded
+container can legitimately exceed `100%` CPU.
 
 ## Suggested stress-test sequence
 
