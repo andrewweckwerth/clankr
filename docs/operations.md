@@ -45,6 +45,15 @@ docker compose --project-name clankr-prod --env-file /path/to/.env \
 
 If a job is stuck, inspect the job row, Redis stream/consumer state, and orchestrator logs first. A `Failed` job is not automatically retried. If model calls fail, check Ollama reachability from the classifier container and confirm the configured model exists. If audio processing fails, inspect MinIO availability and the object key recorded in the job.
 
+## Structured logs and benchmarks
+
+The Python services emit JSON lifecycle events to stdout, while the production
+Docker logging configuration retains rotated `json-file` logs. See
+[benchmarking.md](benchmarking.md) for the event fields and a repeatable
+single-VM benchmark command that uses a distinct Compose project and separate
+PostgreSQL, Redis, and MinIO volumes. Do not run that benchmark against the
+production Compose project or production environment file.
+
 ## Current operational risks
 
 - No automatic retries or alerting for failed jobs.

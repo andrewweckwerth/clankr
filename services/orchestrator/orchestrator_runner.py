@@ -30,8 +30,9 @@ from db import (
 from redis_cache import cache_song_id, find_song_by_fingerprint
 from redis_queue import REDIS_URL, RESULT_GROUP, RESULT_STREAM, STREAMS, enqueue_task, ensure_consumer_group, new_consumer_name, reclaim_one, task_for_job
 from utils import FRONTEND_ORIGIN, compute_fingerprint_hash, copy_source_object, delete_object_keys, object_exists, save_uploaded_file, stream_object
+from structured_logging import configure_logging, log_event
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)-9s %(message)s")
+configure_logging("orchestrator")
 logger = logging.getLogger("orchestrator")
 STAGE_ORDER = ("identify", "demucs", "whisper", "classify")
 JOB_TYPE_STAGES = {
@@ -52,9 +53,11 @@ async def lifespan(app: FastAPI):
     await ensure_consumer_group(app.state.redis, RESULT_STREAM, RESULT_GROUP)
     app.state.stop_event = asyncio.Event()
     app.state.result_task = asyncio.create_task(result_loop(app))
+    log_event(logger, "service.started")
     try:
         yield
     finally:
+        log_event(logger, "service.stopping")
         app.state.stop_event.set()
         app.state.result_task.cancel()
         await asyncio.gather(app.state.result_task, return_exceptions=True)
@@ -69,6 +72,7 @@ app.add_middleware(CORSMiddleware, allow_origins=[FRONTEND_ORIGIN], allow_creden
 async def result_loop(app: FastAPI) -> None:
     redis = app.state.redis
     consumer = new_consumer_name("orchestrator")
+    log_event(logger, "worker.started", worker_id=consumer, stream=RESULT_STREAM)
     try:
         while not app.state.stop_event.is_set():
             message = await reclaim_one(redis, RESULT_STREAM, RESULT_GROUP, consumer)
@@ -95,6 +99,16 @@ async def handle_event(app: FastAPI, event: dict[str, Any]) -> None:
     pool = app.state.db_pool
     redis = app.state.redis
     next_task = None
+    event_fields = {
+        "job_id": job_id,
+        "task_id": event.get("task_id"),
+        "stage": stage,
+        "worker_id": event.get("worker_id"),
+        "attempt": event.get("attempt"),
+    }
+    if event.get("benchmark_run_id"):
+        event_fields["benchmark_run_id"] = event["benchmark_run_id"]
+    log_event(logger, "stage.event_received", event_type=event.get("event"), **event_fields)
     async with pool.acquire() as conn:
         async with conn.transaction():
             job = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1 FOR UPDATE", job_id)
@@ -107,6 +121,7 @@ async def handle_event(app: FastAPI, event: dict[str, Any]) -> None:
                     return
                 await conn.execute("UPDATE job_steps SET status = 'processing', started_at = COALESCE(started_at, CURRENT_TIMESTAMP) WHERE id = $1 AND status = 'queued'", step["id"])
                 await update_job(conn, job_id, status="processing", current_stage=stage)
+                log_event(logger, "stage.started", **event_fields)
                 return
             if event.get("event") != "completed":
                 raise ValueError(f"Unknown Redis result event: {event.get('event')}")
@@ -116,10 +131,18 @@ async def handle_event(app: FastAPI, event: dict[str, Any]) -> None:
                 error = event.get("error", "stage failed")
                 await conn.execute("UPDATE job_steps SET status = 'failed', error = $2, completed_at = CURRENT_TIMESTAMP WHERE id = $1", step["id"], error)
                 await update_job(conn, job_id, status="failed", current_stage=stage, error=error)
+                log_event(
+                    logger,
+                    "stage.failed",
+                    error_type=event.get("error_type") or "stage_error",
+                    duration_ms=event.get("duration_ms"),
+                    **event_fields,
+                )
                 return
             result = event.get("result") or {}
             await update_job(conn, job_id, **stage_updates(stage, result))
             await conn.execute("UPDATE job_steps SET status = 'completed', result = $2::jsonb, error = NULL, completed_at = CURRENT_TIMESTAMP WHERE id = $1", step["id"], json.dumps(result))
+            log_event(logger, "stage.completed", duration_ms=event.get("duration_ms"), **event_fields)
             updated_job = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
 
             if (
@@ -163,6 +186,7 @@ async def handle_event(app: FastAPI, event: dict[str, Any]) -> None:
                         completed_at=datetime.now(timezone.utc).replace(tzinfo=None),
                         error=None,
                     )
+                    log_event(logger, "job.completed", cache_hit=True, job_type=updated_job["job_type"], **event_fields)
                     return
 
             next_step = await conn.fetchrow("SELECT stage FROM job_steps WHERE job_id = $1 AND status = 'queued' ORDER BY position LIMIT 1", job_id)
@@ -175,6 +199,7 @@ async def handle_event(app: FastAPI, event: dict[str, Any]) -> None:
                 await update_job(conn, job_id, status="completed", current_stage=None, song_id=song_id, completed_at=datetime.now(timezone.utc).replace(tzinfo=None), error=None)
                 await record_user_song(conn, user_id=updated_job["user_id"], song_id=song_id)
                 await cache_song_id(redis, updated_job["fingerprint_hash"], song_id)
+                log_event(logger, "job.completed", cache_hit=False, job_type="full", **event_fields)
             else:
                 await update_job(
                     conn,
@@ -184,8 +209,17 @@ async def handle_event(app: FastAPI, event: dict[str, Any]) -> None:
                     completed_at=datetime.now(timezone.utc).replace(tzinfo=None),
                     error=None,
                 )
+                log_event(logger, "job.completed", cache_hit=False, job_type=updated_job["job_type"], **event_fields)
     if next_task:
         await enqueue_task(redis, next_task)
+        log_event(
+            logger,
+            "stage.enqueued",
+            job_id=next_task["job_id"],
+            task_id=next_task["task_id"],
+            stage=next_task["stage"],
+            attempt=next_task.get("attempt"),
+        )
 
 
 def stage_updates(stage: str, result: dict[str, Any]) -> dict[str, Any]:
@@ -478,7 +512,10 @@ async def retry_job(
             file_path=retry_source_file_path,
         )
         new_job = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", new_job_id)
-    await enqueue_task(request.app.state.redis, task_for_job(dict(new_job), stages[0]))
+    task = task_for_job(dict(new_job), stages[0])
+    log_event(logger, "job.created", job_id=new_job_id, job_type=job_type, retry_of_job_id=job_id)
+    await enqueue_task(request.app.state.redis, task)
+    log_event(logger, "stage.enqueued", job_id=new_job_id, task_id=task["task_id"], stage=stages[0], attempt=task.get("attempt"))
     return {
         "success": True,
         "job_id": new_job_id,
@@ -580,7 +617,10 @@ async def analyze(
                 file_path=source_file_path,
             )
             job = await conn.fetchrow("SELECT * FROM jobs WHERE id = $1", job_id)
-        await enqueue_task(request.app.state.redis, task_for_job(dict(job), stages[0]))
+        task = task_for_job(dict(job), stages[0])
+        log_event(logger, "job.created", job_id=job_id, job_type=job_type, user_id=user["id"])
+        await enqueue_task(request.app.state.redis, task)
+        log_event(logger, "stage.enqueued", job_id=job_id, task_id=task["task_id"], stage=stages[0], attempt=task.get("attempt"))
         return {
             "success": True,
             "job_id": job_id,

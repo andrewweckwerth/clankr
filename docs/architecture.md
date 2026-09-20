@@ -93,3 +93,13 @@ Development and production run Redis 7 on the internal Docker network. The appli
 - MinIO object-key contracts are `raw/`, `preprocessed/`, and `stems/`.
 - `database/init.sql` is initialization-only, not a migration system.
 - There is no external metrics backend, tracing system, or dead-letter workflow yet.
+
+## Observability and benchmark runs
+
+The Python services write structured JSON lifecycle events to stdout. Docker
+retains normal production output through its configured rotating `json-file`
+driver; PostgreSQL is not on the hot logging path. Events correlate a job, task,
+stage, attempt, worker, release, and optional benchmark run without recording
+audio bytes or lyrics. See [benchmarking.md](benchmarking.md) for the event
+schema, ordinary-log inspection, and the isolated same-VM Demucs benchmark
+harness.
