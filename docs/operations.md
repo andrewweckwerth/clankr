@@ -6,6 +6,11 @@
 
 The production VM needs Docker Compose v2, DNS pointing the application host at the VM, and private environment values supplied outside the repository. PostgreSQL, Redis, MinIO, Ollama, and worker health APIs should not be internet-facing. Redis state lives in a named Docker volume, while PostgreSQL remains authoritative for jobs.
 
+The MinIO server and initialization client images are pulled from
+`quay.io/minio/minio` and `quay.io/minio/mc`. Development and the isolated
+benchmark use these same registry references. If an older checkout fails to
+pull `minio/mc` from Docker Hub, update the checkout before retrying deployment.
+
 ## Deployment flow
 
 The GitHub Actions workflow runs on pushes to `main` or manually:
