@@ -1,7 +1,7 @@
 'use client';
 
 import { useApiFetch } from '@/lib/api';
-import { WorkspaceWindow } from '@/components/WorkspaceChrome';
+import { WorkspacePanel } from '@/components/WorkspaceChrome';
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
 import useSWR from 'swr';
@@ -45,30 +45,30 @@ function SongList({ title, url, emptyMessage, library = false }: SongListProps) 
   };
 
   return (
-    <section className="y2k-window-stack">
+    <section className="panel-stack">
       {error && (
-        <WorkspaceWindow title={title}>
+        <WorkspacePanel title={title}>
           <p className="text-red-200">Failed to load songs.</p>
-        </WorkspaceWindow>
+        </WorkspacePanel>
       )}
       {!error && !data && (
-        <WorkspaceWindow title={title}>
+        <WorkspacePanel title={title}>
           <p className="text-zinc-500">Loading songs…</p>
-        </WorkspaceWindow>
+        </WorkspacePanel>
       )}
       {!error && data?.length === 0 && (
-        <WorkspaceWindow title={title}>
+        <WorkspacePanel title={title}>
           <p className="py-8 text-center text-sm text-zinc-500">{emptyMessage}</p>
-        </WorkspaceWindow>
+        </WorkspacePanel>
       )}
 
       {data && data.length > 0 && (
-        <div className="y2k-window-grid">
+        <div className="panel-grid">
             {data.map((song) => {
               const accuracy = song.accuracy == null ? null : Number(song.accuracy);
               return (
-                <WorkspaceWindow key={song.id} title={song.title || 'Untitled'} className="y2k-song-window">
-                  <article className="y2k-song-card relative">
+                <WorkspacePanel key={song.id} title={song.title || 'Untitled'}>
+                  <article className="relative">
                     <Link href={`/songs/${song.id}`} className="group block pr-14">
                       <h3 className="sr-only">{song.title || 'Untitled'}</h3>
                       <p className="mt-1 text-sm text-zinc-400">{song.artist || 'Unknown artist'}</p>
@@ -87,13 +87,13 @@ function SongList({ title, url, emptyMessage, library = false }: SongListProps) 
                       title="Remove from library"
                       disabled={removing === song.id}
                       onClick={() => void removeFromLibrary(song)}
-                      className="y2k-button-danger absolute right-0 top-0 px-2 py-1 text-xs disabled:opacity-50"
+                      className="button-danger absolute right-0 top-0 px-2 py-1 text-xs disabled:opacity-50"
                     >
                       Remove
                     </button>
                   )}
                   </article>
-                </WorkspaceWindow>
+                </WorkspacePanel>
               );
             })}
         </div>

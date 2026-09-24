@@ -83,7 +83,7 @@ export default function AuthPanel({ initialMode = "sign-in" }: { initialMode?: A
         type="button"
         onClick={handleGoogle}
         disabled={pending}
-        className="y2k-button flex w-full items-center justify-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed"
+        className="button-primary flex w-full items-center justify-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed"
       >
         <span className="text-base font-bold text-blue-600">G</span>
         Continue with Google
@@ -95,7 +95,7 @@ export default function AuthPanel({ initialMode = "sign-in" }: { initialMode?: A
         <span className="h-px flex-1 bg-white/10" />
       </div>
 
-      <div className="grid grid-cols-2 rounded-xl bg-white/[0.05] p-1 text-sm">
+      <div className="grid grid-cols-2 rounded-md bg-white/[0.05] p-1 text-sm">
         <button
           type="button"
           onClick={() => {
@@ -135,12 +135,12 @@ export default function AuthPanel({ initialMode = "sign-in" }: { initialMode?: A
           </label>
         )}
 
-        {error && <p className="rounded-xl border border-red-400/25 bg-red-400/10 px-3 py-2 text-sm text-red-200">{error}</p>}
+        {error && <p className="rounded-md border border-red-400/25 bg-red-400/10 px-3 py-2 text-sm text-red-200">{error}</p>}
 
         <button
           type="submit"
           disabled={pending}
-          className="y2k-button w-full rounded-2xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed"
+          className="button-primary w-full rounded-lg px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed"
         >
           {pending ? "Please wait…" : mode === "sign-in" ? "Sign in" : "Create account"}
         </button>

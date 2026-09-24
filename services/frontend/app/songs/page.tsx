@@ -2,10 +2,11 @@
 
 import ProcessedSongs from '@/components/ProcessedSongs';
 import SignedOutPanel from '@/components/SignedOutPanel';
-import { WorkspaceFrame, WorkspaceWindow } from '@/components/WorkspaceChrome';
+import { WorkspaceFrame, WorkspacePanel } from '@/components/WorkspaceChrome';
 import { authClient } from '@/lib/auth-client';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import Link from 'next/link';
 
 export default function SongsPage() {
   return (
@@ -30,7 +31,7 @@ function SongsContent() {
 
   return (
     <WorkspaceFrame crumb={isCatalog ? 'All Songs' : 'My Songs'}>
-      <WorkspaceWindow title={isCatalog ? 'All Songs' : 'My Songs'}>
+      <WorkspacePanel title={isCatalog ? 'All Songs' : 'My Songs'}>
         <header className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">{isCatalog ? 'Canonical catalog' : 'Your library'}</p>
           <p className="mt-3 text-sm leading-6 text-zinc-400">
@@ -39,7 +40,11 @@ function SongsContent() {
               : 'Songs claimed through a completed full pipeline or an Acousti cache hit.'}
           </p>
         </header>
-      </WorkspaceWindow>
+      </WorkspacePanel>
+      <nav className="view-tabs" aria-label="Song views">
+        <Link href="/songs" aria-current={!isCatalog ? 'page' : undefined}>My songs</Link>
+        <Link href="/songs?view=all" aria-current={isCatalog ? 'page' : undefined}>All songs</Link>
+      </nav>
       <ProcessedSongs view={view} />
     </WorkspaceFrame>
   );

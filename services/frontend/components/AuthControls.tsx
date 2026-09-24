@@ -14,7 +14,7 @@ export default function AuthControls() {
     return (
       <Link
         href="/sign-in"
-        className="y2k-button rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9bbdf0] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d]"
+        className="button-primary rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9bbdf0] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d]"
       >
         Sign in
       </Link>
@@ -25,15 +25,15 @@ export default function AuthControls() {
     <div className="flex items-center gap-2">
       <Link
         href="/account"
-        className="hidden max-w-36 truncate text-sm text-zinc-300 transition hover:text-white sm:block"
+        className="max-w-36 truncate text-sm text-zinc-300 transition hover:text-white"
         title="Account settings"
       >
-        {session.user.name}
+        Account
       </Link>
       <button
         type="button"
         onClick={() => void authClient.signOut()}
-        className="y2k-button-secondary rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9bbdf0]"
+        className="button-secondary rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9bbdf0]"
       >
         Sign out
       </button>

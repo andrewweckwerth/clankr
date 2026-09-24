@@ -2,7 +2,7 @@
 
 import { authClient } from '@/lib/auth-client';
 import SignedOutPanel from '@/components/SignedOutPanel';
-import { WorkspaceFrame, WorkspaceWindow } from '@/components/WorkspaceChrome';
+import { WorkspaceFrame, WorkspacePanel } from '@/components/WorkspaceChrome';
 import Link from 'next/link';
 
 const TOOLS = [
@@ -49,24 +49,24 @@ export default function ToolsPage() {
 
   return (
     <WorkspaceFrame crumb="Standalone Tools">
-      <WorkspaceWindow title="Standalone Tools">
+      <WorkspacePanel title="Standalone Tools">
         <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Standalone services</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">Standalone services</p>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white">Use one part of the pipeline.</h1>
           <p className="mt-3 text-sm leading-6 text-zinc-400">Each run creates an independent job and never creates a new canonical Song.</p>
         </div>
 
-      </WorkspaceWindow>
+      </WorkspacePanel>
 
-      <section className="y2k-window-grid" aria-label="Standalone services">
+      <section className="panel-grid" aria-label="Standalone services">
         {TOOLS.map((tool) => (
-          <WorkspaceWindow key={tool.href} title={tool.name}>
-            <Link href={tool.href} className="y2k-tool-action">
+          <WorkspacePanel key={tool.href} title={tool.name}>
+            <Link href={tool.href} className="tool-link">
               <span>{tool.input} input → {tool.output}</span>
               <p>{tool.description}</p>
-              <span className="y2k-tool-cta">Try {tool.name} →</span>
+              <span className="tool-cta">Try {tool.name} →</span>
             </Link>
-          </WorkspaceWindow>
+          </WorkspacePanel>
         ))}
       </section>
     </WorkspaceFrame>
