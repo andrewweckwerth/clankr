@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
-import { WorkspaceFrame, WorkspaceWindow } from "@/components/WorkspaceChrome";
+import { WorkspaceFrame, WorkspacePanel } from "@/components/WorkspaceChrome";
 
 export default function AccountPage() {
   const { data: session, isPending } = authClient.useSession();
@@ -60,14 +60,14 @@ export default function AccountPage() {
     return (
       <main className="mx-auto flex min-h-[calc(100vh-9rem)] max-w-2xl flex-col items-center justify-center px-5 text-center">
         <h1 className="text-3xl font-semibold text-white">Sign in to view your account</h1>
-        <Link href="/sign-in" className="y2k-button mt-6 rounded-full px-5 py-2.5 text-sm font-semibold">Sign in</Link>
+        <Link href="/sign-in" className="button-primary mt-6 rounded-full px-5 py-2.5 text-sm font-semibold">Sign in</Link>
       </main>
     );
   }
 
   return (
     <WorkspaceFrame crumb="Account Settings">
-      <WorkspaceWindow title="Account Settings">
+      <WorkspacePanel title="Account Settings">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-violet-300">Account</p>
         <h1 className="mt-3 text-3xl font-semibold text-white">{session.user.name}</h1>
         <p className="mt-2 text-zinc-400">{session.user.email}</p>
@@ -87,7 +87,7 @@ export default function AccountPage() {
                 type="button"
                 onClick={handleLinkGoogle}
                 disabled={linking}
-                className="y2k-button mt-5 rounded-full px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed"
+                className="button-primary mt-5 rounded-full px-5 py-2.5 text-sm font-semibold disabled:cursor-not-allowed"
               >
                 {linking ? "Connecting…" : "Link Google"}
               </button>
@@ -95,7 +95,7 @@ export default function AccountPage() {
           )}
           {error && <p className="mt-3 text-sm text-red-200">{error}</p>}
         </div>
-      </WorkspaceWindow>
+      </WorkspacePanel>
     </WorkspaceFrame>
   );
 }

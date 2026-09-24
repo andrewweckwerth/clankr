@@ -9,7 +9,7 @@ export default function SiteFooter() {
   if (isPending || session) return null;
 
   return (
-    <footer className="y2k-footer border-t border-white/10 bg-black/20">
+    <footer className="site-footer border-t border-white/10 bg-black/20">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 py-8 text-sm text-zinc-400 sm:flex-row sm:items-center sm:justify-between sm:px-8">
         <div>
           <Link href="/" className="font-semibold text-white transition hover:text-violet-300">
