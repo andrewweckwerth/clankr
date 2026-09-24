@@ -194,6 +194,12 @@ than a missing worker replica.
 
 ### Resource charts
 
+Resource sampling tolerates temporary containers disappearing between the
+container listing and the stats request. It retains any samples returned and
+refreshes the container list at the next interval; short-lived runners may
+therefore have gaps in their samples. Other Docker errors still stop the
+collector and should be investigated before using the resource results.
+
 After a run, render its local resource report without installing a Python
 package:
 

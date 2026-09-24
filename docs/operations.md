@@ -6,10 +6,15 @@
 
 The production VM needs Docker Compose v2, DNS pointing the application host at the VM, and private environment values supplied outside the repository. PostgreSQL, Redis, MinIO, Ollama, and worker health APIs should not be internet-facing. Redis state lives in a named Docker volume, while PostgreSQL remains authoritative for jobs.
 
-The MinIO server and initialization client images are pulled from
-`quay.io/minio/minio` and `quay.io/minio/mc`. Development and the isolated
-benchmark use these same registry references. If an older checkout fails to
-pull `minio/mc` from Docker Hub, update the checkout before retrying deployment.
+The MinIO server and initialization client both use
+`ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z`.
+This [third-party build](https://github.com/coollabsio/minio) compiles official
+MinIO source and includes the `mc` client. The initialization service overrides
+the image entrypoint to run the existing bucket-creation commands. Both services
+share one image on disk. Development and the isolated benchmark use the same
+pinned release, replacing the inaccessible Docker Hub and Quay references.
+This is also a MinIO version upgrade: verify the isolated benchmark first and
+back up production MinIO data before deploying it against existing volumes.
 
 ## Deployment flow
 

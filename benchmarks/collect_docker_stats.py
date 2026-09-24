@@ -22,6 +22,22 @@ def container_ids(project_name: str) -> list[str]:
     return output.split()
 
 
+def collect_stats(project_name: str) -> str:
+    ids = container_ids(project_name)
+    if not ids:
+        return ""
+    try:
+        return command_output(["docker", "stats", "--no-stream", "--format", "{{json .}}", *ids])
+    except subprocess.CalledProcessError as exc:
+        errors = (exc.stderr or "").strip().splitlines()
+        if not errors or not all("No such container:" in line for line in errors):
+            raise
+        # One-shot Compose runners can be removed after `docker ps` returns.
+        # Keep any samples Docker produced and refresh the IDs next interval.
+        print("A container disappeared during sampling; continuing next interval.", file=sys.stderr)
+        return exc.stdout or ""
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project-name", required=True)
@@ -33,9 +49,8 @@ def main() -> None:
     with output.open("a") as file:
         try:
             while True:
-                ids = container_ids(args.project_name)
-                if ids:
-                    raw = command_output(["docker", "stats", "--no-stream", "--format", "{{json .}}", *ids])
+                raw = collect_stats(args.project_name)
+                if raw:
                     sampled_at = datetime.now(timezone.utc).isoformat()
                     for line in raw.splitlines():
                         sample = json.loads(line)
