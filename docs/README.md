@@ -6,6 +6,8 @@ This documentation describes the implementation currently present in the reposit
 
 ## Documentation map
 
+- [Handy commands](commands.md) — SSH, VM benchmark runs, audio uploads, result downloads, HTML reports, and disk cleanup.
+- [Benchmarking](benchmarking.md) — isolated Demucs comparisons, structured logs, and collected measurements.
 - [System architecture](architecture.md) — services, request flow, processing stages, networks, and storage boundaries.
 - [Data model and pipeline](data-model.md) — PostgreSQL tables, object keys, job state, deduplication, and completion behavior.
 - [Local development](development.md) — prerequisites, configuration, startup, useful commands, and verification.
