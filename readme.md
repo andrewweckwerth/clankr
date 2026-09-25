@@ -40,7 +40,7 @@ See the [documentation index](docs/README.md) for the system design and local de
 
 ## Project status
 
-This is an active engineering project. The current implementation uses Redis Streams for stage queues, has no automated test suite, and treats the classifier as a probabilistic signal rather than proof of authorship. Those tradeoffs are documented alongside the architecture.
+This is an active engineering project. The current implementation uses Redis Streams for stage queues, includes [automated backend and frontend tests](docs/testing.md), and treats the classifier as a probabilistic signal rather than proof of authorship. Those tradeoffs are documented alongside the architecture.
 
 Full-project uploads use Acousti as a global fingerprint cache gate. Cache hits
 reuse the canonical Song; cache misses continue through Demucs, Whisper, and the

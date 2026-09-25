@@ -2,13 +2,17 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
+
   validate:
     name: Validate
     runs-on: ubuntu-latest
@@ -29,27 +33,8 @@ jobs:
           POSTGRES_DB: clankr
         run: docker compose -f docker-compose.dev.yml config
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: services/frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        working-directory: services/frontend
-        run: npm ci
-
-      - name: Lint frontend
-        working-directory: services/frontend
-        run: npm run lint
-
-      - name: Build frontend
-        working-directory: services/frontend
-        run: npm run build
-
       - name: Check Python syntax
-        run: python3 -m compileall -q services
+        run: python3 -m compileall -q services tests
 
   build-images:
     name: Build ${{ matrix.service }}

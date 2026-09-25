@@ -10,6 +10,12 @@ env:
   IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/clankr
 
 jobs:
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
+    permissions:
+      contents: read
+
   build:
     name: Build ${{ matrix.name }}
     runs-on: ubuntu-latest
@@ -48,7 +54,7 @@ jobs:
 
   deploy:
     name: Deploy to Linveo VM
-    needs: build
+    needs: [build, tests]
     runs-on: ubuntu-latest
     permissions:
       contents: read

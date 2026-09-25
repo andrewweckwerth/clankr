@@ -8,9 +8,11 @@ This documentation describes the implementation currently present in the reposit
 
 - [Handy commands](commands.md) — SSH, VM benchmark runs, audio uploads, result downloads, HTML reports, and disk cleanup.
 - [Benchmarking](benchmarking.md) — isolated Demucs comparisons, structured logs, and collected measurements.
+- [First benchmark results](first-benchmark-results.md) — initial 1x–5x Demucs comparison on the Linveo VM, interpretation, and raw timing data.
 - [System architecture](architecture.md) — services, request flow, processing stages, networks, and storage boundaries.
 - [Data model and pipeline](data-model.md) — PostgreSQL tables, object keys, job state, deduplication, and completion behavior.
 - [Local development](development.md) — prerequisites, configuration, startup, useful commands, and verification.
+- [Testing](testing.md) — backend, frontend, and browser test coverage, local commands, and CI gates.
 - [Operations and deployment](operations.md) — production topology, CI/CD, secrets, backups, and troubleshooting.
 - [Roadmap](roadmap.md) — prioritized product, frontend, authentication, reliability, queue, and scaling work.
 
@@ -31,4 +33,8 @@ services/classifier/               LLM-backed lyrics classifier
 
 ## Implementation status
 
-The codebase is an active project rather than a finished platform. The current system has no automated test suite, no formal schema migration mechanism, and uses Redis Streams for work distribution while PostgreSQL remains the source of truth. Those constraints are documented so future changes do not mistake planned behavior for implemented behavior.
+The codebase is an active project rather than a finished platform. Automated tests
+cover backend contracts, database/queue integration, and focused frontend flows.
+Model inference and storage are mocked. There is no formal schema migration
+mechanism; Redis Streams distribute work while PostgreSQL remains the source of
+truth. See [Testing](testing.md) for the coverage boundaries.

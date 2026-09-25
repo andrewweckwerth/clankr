@@ -134,6 +134,11 @@ fingerprint caching and LLM behavior cannot hide the worker-capacity difference.
 The runner gives each job a unique `raw/benchmarks/<run>/…` key, preventing
 Demucs output-object collisions while all inputs remain byte-identical.
 
+The first comparison used one song and 10 jobs at 1x, 2x, 3x, 4x, and 5x
+workers on the Linveo VM. It is a rough baseline only; see
+[first benchmark results](first-benchmark-results.md) and the curated raw runs
+under `benchmarks/results/first-demucs-2026-09-24/`.
+
 ### Apple Silicon development machines
 
 The published production images currently target `linux/amd64`. On an Apple
@@ -161,7 +166,7 @@ removes production volumes.
 
 ## Evidence collected per run
 
-Each run creates an ignored directory at `benchmarks/results/<run-id>/`:
+Each run creates a result directory at `benchmarks/results/<run-id>/`:
 
 ```text
 manifest.json             workload, image/git context, and host identity
@@ -212,21 +217,18 @@ This writes `analysis.html` and `analysis.json` into the same result directory.
 The HTML report graphs aggregate CPU and memory by service; a multi-threaded
 container can legitimately exceed `100%` CPU.
 
-## Suggested stress-test sequence
+## Suggested follow-up sequence
 
-1. Establish the 10-job smoke baseline with one Demucs worker.
-2. Run a 100-job steady batch at one worker and repeat it three times.
-3. Run the same 100-job batch at two workers and compare p50/p95 queue wait,
-   stage duration, throughput, error count, CPU, memory, and disk pressure.
-4. Only after the VM is stable, run the 1,000-job burst with one worker, then
-   two workers. Stop if failures, swap pressure, low disk space, or production
+1. Run a realistic workload with several songs, varied lengths, and repeated
+   10–60 job batches. Compare worker counts with both evenly and unevenly
+   divisible batch sizes.
+2. Repeat each configuration and record whether the model was warm, along with
+   the image tag, fixture hashes, worker count, and job count.
+3. Run a separate stress scenario with a larger sustained batch or controlled
+   arrival rate. Stop if failures, swap pressure, low disk space, or production
    impact appears.
-5. Record the exact image tag, fixture hash, replica count, job count, and
-   whether models were warm. Keep the resulting directories as the comparison
-   evidence.
-6. Follow-up experiments should change one thing at a time: worker count,
-   input length, job arrival rate, or resource limit. Run a new isolated
-   project for every experiment.
+4. Change one variable at a time: worker count, input length, arrival rate, or
+   resource limit. Keep each experiment in its own isolated project.
 
 This measures a single VM's real capacity; it is not autoscaling. A second
 Demucs container may improve throughput, do nothing, or make it worse depending
