@@ -3,11 +3,12 @@
 import { useApiFetch } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import SignedOutPanel from '@/components/SignedOutPanel';
-import { WorkspaceFrame, WorkspaceWindow } from '@/components/WorkspaceChrome';
+import { WorkspaceFrame, WorkspacePanel } from '@/components/WorkspaceChrome';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback } from 'react';
 import useSWR from 'swr';
+import { PIPELINE_STAGES, stageName, pipelineTimestamp } from '@/lib/pipeline';
 
 type JobView = 'mine' | 'all' | 'active';
 
@@ -36,7 +37,7 @@ const LABELS: Record<JobSummary['job_type'], string> = {
 
 const STATUS_STYLE: Record<string, string> = {
   queued: 'border-zinc-500/30 bg-zinc-500/10 text-zinc-300',
-  processing: 'border-amber-400/30 bg-amber-400/10 text-amber-200',
+  processing: 'border-blue-400/30 bg-blue-400/10 text-blue-200',
   completed: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
   failed: 'border-red-400/30 bg-red-400/10 text-red-200',
   cancelled: 'border-zinc-500/30 bg-zinc-500/10 text-zinc-400',
@@ -64,12 +65,12 @@ const VIEW_DETAILS: Record<JobView, { title: string; kicker: string; description
 };
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(pipelineTimestamp(value)));
 }
 
 function selectedView(value: string | null): JobView {
-  if (value === 'all' || value === 'active') return value;
-  return 'mine';
+  if (value === 'all' || value === 'mine') return value;
+  return 'active';
 }
 
 export default function JobsPage() {
@@ -103,63 +104,82 @@ function JobsContent() {
     description={details.description}
   />;
 
+  const waiting = data?.filter((job) => job.status === 'queued').length ?? 0;
+  const running = data?.filter((job) => job.status === 'processing').length ?? 0;
+
   return (
     <WorkspaceFrame crumb={details.title}>
-      <WorkspaceWindow title={details.title}>
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">{details.kicker}</p>
+      <header>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold">{details.title}</h1>
+          <Link href="/projects/new" className="button-primary px-4 py-2 text-sm">New job</Link>
+        </div>
         <p className="mt-2 text-sm text-zinc-400">{details.description}</p>
-      </WorkspaceWindow>
+        <nav className="view-tabs mt-6" aria-label="Job views">
+          <Link href="/jobs?view=active" aria-current={view === 'active' ? 'page' : undefined}>Queue</Link>
+          <Link href="/jobs?view=mine" aria-current={view === 'mine' ? 'page' : undefined}>My history</Link>
+          <Link href="/jobs?view=all" aria-current={view === 'all' ? 'page' : undefined}>All completed</Link>
+        </nav>
+      </header>
 
-      <section className="y2k-window-stack" aria-label={details.title}>
-        {error && (
-          <WorkspaceWindow title={details.title}>
-            <p className="text-red-200">Jobs could not be loaded.</p>
-          </WorkspaceWindow>
-        )}
-        {!error && !data && (
-          <WorkspaceWindow title={details.title}>
-            <p className="text-zinc-500">Loading jobs…</p>
-          </WorkspaceWindow>
-        )}
-        {data && data.length === 0 && (
-          <WorkspaceWindow title={view === 'mine' ? 'No Jobs' : details.title}>
-            <div className="py-8 text-center">
-              <p className="text-zinc-400">{details.empty}</p>
-              {view === 'mine' && <Link href="/projects/new" className="y2k-button mt-5 inline-flex rounded-full px-5 py-2.5 text-sm font-semibold">Start a pipeline</Link>}
-            </div>
-          </WorkspaceWindow>
-        )}
-        {data?.map((job) => {
-          const isOwner = view === 'mine' || job.is_owner === true;
-          const jobTitle = isOwner ? job.song_title || job.title || LABELS[job.job_type] : `Job #${job.id}`;
-          const jobSummary = (
-            <div className={`grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center ${isOwner ? 'group' : ''}`}>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="truncate text-lg font-semibold text-white">{jobTitle}</h2>
-                  <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${STATUS_STYLE[job.status] ?? STATUS_STYLE.queued}`}>{job.status}</span>
-                  {isOwner && job.cache_hit && <span className="rounded-full border border-violet-400/30 bg-violet-400/10 px-2.5 py-1 text-xs text-violet-200">cache hit</span>}
-                </div>
-                <p className="mt-1 text-sm text-zinc-400">
-                  {LABELS[job.job_type]}
-                  {job.current_stage ? ` · ${job.current_stage}` : ''}
-                  {isOwner && job.error ? ` · ${job.error}` : ''}
-                </p>
-              </div>
-              <div className="flex items-center gap-5 text-sm text-zinc-500">
-                <time dateTime={job.created_at}>{formatDate(job.created_at)}</time>
-                {isOwner && <span className="text-white transition group-hover:translate-x-1" aria-hidden="true">→</span>}
-              </div>
-            </div>
-          );
+      {view === 'active' && data && !error && (
+        <section className="mt-2" aria-label="Queue by stage">
+          <div className="mb-3 flex flex-wrap justify-between gap-2 text-xs text-zinc-400">
+            <p>{running} running · {waiting} queued</p>
+            <p>Refreshes every 2 seconds · counts for the {data.length} loaded jobs</p>
+          </div>
+          <ol className="pipeline-stages">
+            {PIPELINE_STAGES.map((stage, index) => {
+              const stageJobs = data.filter((job) => job.current_stage === stage.key);
+              const queued = stageJobs.filter((job) => job.status === 'queued').length;
+              const processing = stageJobs.filter((job) => job.status === 'processing').length;
+              return (
+                <li key={stage.key} data-status={processing > 0 ? 'processing' : 'idle'}>
+                  <p className="stage-number">0{index + 1} · {stage.service}</p>
+                  <h2 className="stage-name">{stage.name}</h2>
+                  <p className="stage-status">{processing} running</p>
+                  <p className={`mt-1 text-sm ${queued > 0 ? 'text-amber-200' : 'text-zinc-500'}`}>{queued} queued</p>
+                </li>
+              );
+            })}
+          </ol>
+          <p className="mt-3 text-xs text-zinc-500">Queued counts show where work is waiting. Open one of your jobs to inspect its stage durations.</p>
+        </section>
+      )}
 
-          return (
-            <WorkspaceWindow key={job.id} title={`Job #${job.id}`}>
-              {isOwner ? <Link href={`/jobs/${job.id}`} className="y2k-job-link block transition">{jobSummary}</Link> : jobSummary}
-            </WorkspaceWindow>
-          );
-        })}
-      </section>
+      {error ? (
+        <WorkspacePanel title="Unable to load jobs"><p className="text-red-200">Jobs could not be loaded. Please try again.</p></WorkspacePanel>
+      ) : !data ? (
+        <p className="py-8 text-zinc-400">Loading jobs…</p>
+      ) : data.length === 0 ? (
+        <p className="panel px-5 py-10 text-center text-zinc-400">{details.empty}</p>
+      ) : (
+        <div className="panel overflow-x-auto">
+          <table className="jobs-table">
+            <caption className="sr-only">{details.title}</caption>
+            <thead><tr><th scope="col">Job</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Stage</th><th scope="col">Created</th></tr></thead>
+            <tbody>
+              {data.map((job) => {
+                const isOwner = view === 'mine' || job.is_owner === true;
+                const title = isOwner ? job.song_title || job.title || `Job #${job.id}` : `Job #${job.id}`;
+                return (
+                  <tr key={job.id}>
+                    <td className="min-w-44 max-w-80">
+                      {isOwner ? <Link href={`/jobs/${job.id}`} className="font-medium">{title}</Link> : <span>{title}</span>}
+                      <p className="mt-1 text-xs text-zinc-500">#{job.id}{isOwner && job.cache_hit ? ' · cached' : ''}</p>
+                      {isOwner && job.error && <p className="mt-1 text-xs text-red-200">{job.error}</p>}
+                    </td>
+                    <td className="whitespace-nowrap text-zinc-400">{LABELS[job.job_type]}</td>
+                    <td><span className={`inline-block rounded border px-2 py-0.5 text-xs ${STATUS_STYLE[job.status] ?? STATUS_STYLE.queued}`}>{job.status}</span></td>
+                    <td className="whitespace-nowrap text-zinc-400">{stageName(job.current_stage)}</td>
+                    <td className="whitespace-nowrap text-xs text-zinc-500"><time dateTime={job.created_at}>{formatDate(job.created_at)}</time></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </WorkspaceFrame>
   );
 }

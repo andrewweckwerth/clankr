@@ -22,7 +22,7 @@ export default function ToolRunPage({ jobType }: { jobType: StandaloneJobType })
     return (
       <main className="mx-auto max-w-xl px-5 py-24 text-center">
         <h1 className="text-3xl font-semibold text-white">Sign in to use this service</h1>
-        <Link href="/sign-in" className="y2k-button mt-6 inline-flex rounded-full px-5 py-2.5 text-sm font-semibold">Sign in</Link>
+        <Link href="/sign-in" className="button-primary mt-6 inline-flex rounded-full px-5 py-2.5 text-sm font-semibold">Sign in</Link>
       </main>
     );
   }
