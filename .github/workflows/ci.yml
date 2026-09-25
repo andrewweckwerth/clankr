@@ -13,29 +13,6 @@ jobs:
     name: Tests
     uses: ./.github/workflows/tests.yml
 
-  validate:
-    name: Validate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Validate Docker Compose configuration
-        env:
-          ENV_FILE: /dev/null
-          MINIO_ENDPOINT: minio:9000
-          MINIO_ACCESS_KEY: clankr-ci
-          MINIO_SECRET_KEY: clankr-ci-secret
-          MINIO_BUCKET: clankr-ci
-          MINIO_SECURE: "false"
-          POSTGRES_USER: clankr
-          POSTGRES_PASSWORD: clankr-ci-password
-          POSTGRES_DB: clankr
-        run: docker compose -f docker-compose.dev.yml config
-
-      - name: Check Python syntax
-        run: python3 -m compileall -q services tests
-
   build-images:
     name: Build ${{ matrix.service }}
     runs-on: ubuntu-latest

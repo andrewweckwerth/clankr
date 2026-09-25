@@ -18,8 +18,8 @@ back up production MinIO data before deploying it against existing volumes.
 
 ## Deployment flow
 
-Pull requests targeting `dev` or `main` run image builds, Compose/syntax
-validation, and the reusable [test suite](testing.md) in parallel. Frontend
+Pull requests targeting `dev` or `main` run image builds and the reusable
+[test suite](testing.md) in parallel. Frontend
 lint and build validation run in the frontend test job.
 
 The production GitHub Actions workflow runs on pushes to `main` or manually:

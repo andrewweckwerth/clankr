@@ -120,7 +120,7 @@ with `npx playwright show-report`. Generated reports are ignored by Git.
 3. Frontend lint, component tests, production build, and Chromium browser tests.
 
 The pull-request CI workflow calls it for PRs targeting `dev` or `main`, alongside
-Compose/syntax validation and all six image builds. The production workflow calls
+all six image builds. The production workflow calls
 the same suite on pushes to `main` and manual runs. Its deployment job requires
 both the image builds and the entire test workflow to succeed. Image building
 and pushing (including the existing `latest` tag) still happen in parallel with
