@@ -1,0 +1,30 @@
+{
+  "run_id": "demucs-20260924T225529Z-3x-10jobs",
+  "scenario": "demucs",
+  "status": "completed",
+  "config": {
+    "audio_sha256": "50c01b3255e90c90af4a3a71b9713840590ac8f4190f560b79beccb6f88adb7d",
+    "audio_filename": "U-Don't No.wav",
+    "demucs_replicas": 3,
+    "input_object_prefix": "raw/benchmarks/demucs-20260924T225529Z-3x-10jobs/"
+  },
+  "submitted_jobs": 10,
+  "completed_jobs": 10,
+  "failed_jobs": 0,
+  "throughput_jobs_per_second": 0.0063,
+  "queue_wait_ms": {
+    "p50": 491692.737,
+    "p95": 1173209.681,
+    "max": 1322973.935
+  },
+  "stage_duration_ms": {
+    "p50": 473825.392,
+    "p95": 495687.721,
+    "max": 501519.404
+  },
+  "job_duration_ms": {
+    "p50": 977619.279,
+    "p95": 1536922.879,
+    "max": 1591024.01
+  }
+}

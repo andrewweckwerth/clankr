@@ -83,7 +83,13 @@ docker compose -f docker-compose.dev.yml build
 docker compose -f docker-compose.dev.yml run --rm frontend npm run lint
 ```
 
-There is no repository-wide automated test command today. Changes to Python services should at least be checked by rebuilding the affected image and calling its `/health` endpoint. Changes to the pipeline should be tested with a small audio fixture and a text-only request.
+Run the backend and frontend suites described in [Testing](testing.md). The fast
+pytest and Vitest suites need no running stack; integration tests use disposable
+PostgreSQL/Redis services, and browser tests use a production frontend build with
+mocked APIs. CI runs all suites alongside image builds. For runtime changes,
+also rebuild the affected service and call its `/health` endpoint. Exercise real
+audio and text-only requests when changing the pipeline, since the automated
+suite mocks model inference and storage.
 
 ## Change guide
 

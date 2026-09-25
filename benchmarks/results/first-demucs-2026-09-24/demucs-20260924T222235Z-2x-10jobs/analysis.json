@@ -1,0 +1,51 @@
+{
+  "run_id": "demucs-20260924T222235Z-2x-10jobs",
+  "host": "Linux-6.8.0-90-generic-x86_64-with-glibc2.39",
+  "demucs_replicas": 2,
+  "samples_started_at": "2026-09-24T22:22:53.683411+00:00",
+  "samples_ended_at": "2026-09-24T22:22:53.683411+00:00",
+  "duration_seconds": 0.0,
+  "container_samples": 6,
+  "service_summary": {
+    "db": {
+      "samples": 1,
+      "cpu_average_percent": 0.1,
+      "cpu_p95_percent": 0.1,
+      "cpu_max_percent": 0.1,
+      "memory_average_mib": 42.7,
+      "memory_max_mib": 42.7
+    },
+    "demucs": {
+      "samples": 1,
+      "cpu_average_percent": 181.3,
+      "cpu_p95_percent": 181.3,
+      "cpu_max_percent": 181.3,
+      "memory_average_mib": 601.4,
+      "memory_max_mib": 601.4
+    },
+    "minio": {
+      "samples": 1,
+      "cpu_average_percent": 0.5,
+      "cpu_p95_percent": 0.5,
+      "cpu_max_percent": 0.5,
+      "memory_average_mib": 68.3,
+      "memory_max_mib": 68.3
+    },
+    "orchestrator": {
+      "samples": 1,
+      "cpu_average_percent": 7.3,
+      "cpu_p95_percent": 7.3,
+      "cpu_max_percent": 7.3,
+      "memory_average_mib": 44.8,
+      "memory_max_mib": 44.8
+    },
+    "redis": {
+      "samples": 1,
+      "cpu_average_percent": 1.1,
+      "cpu_p95_percent": 1.1,
+      "cpu_max_percent": 1.1,
+      "memory_average_mib": 3.4,
+      "memory_max_mib": 3.4
+    }
+  }
+}

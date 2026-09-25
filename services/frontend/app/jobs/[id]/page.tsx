@@ -65,6 +65,12 @@ function runDuration(step: JobStep, now: number | null) {
 
 const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
 
+// Keep this callback stable: the elapsed-time clock rerenders every second.
+// Recreating it would restart SWR's two-second polling timer on every tick.
+function jobRefreshInterval(latest: Job | undefined) {
+  return latest && TERMINAL.has(latest.status) ? 0 : 2000;
+}
+
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -79,7 +85,7 @@ export default function JobDetailPage() {
     return response.json();
   }, [apiFetch]);
   const { data: job, error } = useSWR<Job>(session ? `/api/jobs/${params.id}` : null, fetcher, {
-    refreshInterval: (latest) => latest && TERMINAL.has(latest.status) ? 0 : 2000,
+    refreshInterval: jobRefreshInterval,
   });
 
   useEffect(() => {

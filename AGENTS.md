@@ -27,7 +27,7 @@ docker compose -f docker-compose.dev.yml build
 docker compose -f docker-compose.dev.yml run --rm frontend npm run lint
 ```
 
-For runtime changes, start the stack and verify `/health` for the affected service. For pipeline changes, exercise both an audio request and a text-only request when possible. There is currently no automated repository-wide test suite.
+For runtime changes, start the stack and verify `/health` for the affected service. For pipeline changes, exercise both an audio request and a text-only request when possible. Run relevant pytest, Vitest, and Playwright suites using [docs/testing.md](docs/testing.md); backend integration tests use disposable PostgreSQL and Redis services.
 
 ## Documentation expectations
 
