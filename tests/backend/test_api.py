@@ -68,10 +68,8 @@ async def test_missing_public_song_returns_not_found(guest_client, connection, p
     assert (await guest_client.get(path)).status_code == 404
 
 
-async def test_unauthenticated_request_is_rejected(client, orchestrator, monkeypatch):
-    monkeypatch.setenv("INTERNAL_AUTH_SECRET", "test-only")
-    monkeypatch.delitem(orchestrator.app.dependency_overrides, orchestrator.get_current_user)
-    assert (await client.get("/api/jobs")).status_code == 401
+async def test_unauthenticated_request_is_rejected(guest_client):
+    assert (await guest_client.get("/api/jobs")).status_code == 401
 
 
 async def test_quota_exhaustion_returns_retry_headers(client, connection, redis):
