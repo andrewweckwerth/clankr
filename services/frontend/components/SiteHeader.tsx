@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import AuthControls from '@/components/AuthControls';
+import { useEffect } from 'react';
 
 const NAVIGATION = [
   ['/projects/new', 'Pipeline'],
@@ -13,6 +14,21 @@ const NAVIGATION = [
 
 export default function SiteHeader() {
   const pathname = usePathname();
+  const selectedPage = NAVIGATION.find(([href]) => (
+    pathname === href
+    || pathname.startsWith(`${href}/`)
+    || (href === '/projects/new' && pathname === '/')
+  ));
+
+  useEffect(() => {
+    const pageName = selectedPage?.[1] ?? (
+      pathname === '/sign-in' ? 'Sign in'
+        : pathname === '/sign-up' ? 'Create account'
+          : pathname.startsWith('/account') ? 'Account'
+            : 'Home'
+    );
+    document.title = `Clankr — ${pageName}`;
+  }, [pathname, selectedPage]);
 
   return (
     <header className="site-header">
