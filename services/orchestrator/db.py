@@ -186,7 +186,7 @@ async def list_jobs_for_user(
 
 async def list_shared_jobs(
     pool,
-    user_id: int,
+    user_id: Optional[int],
     *,
     view: str,
     limit: int = 100,
@@ -215,7 +215,7 @@ async def list_shared_jobs(
             f"""
             SELECT jobs.id, jobs.job_type, jobs.current_stage, jobs.status,
                    jobs.created_at, jobs.updated_at,
-                   jobs.user_id = $1 AS is_owner,
+                   COALESCE(jobs.user_id = $1, FALSE) AS is_owner,
                    CASE WHEN jobs.user_id = $1 THEN jobs.cache_hit ELSE FALSE END AS cache_hit,
                    CASE WHEN jobs.user_id = $1 THEN jobs.title END AS title,
                    CASE WHEN jobs.user_id = $1 THEN jobs.artist END AS artist,

@@ -53,7 +53,7 @@ const VIEW_DETAILS: Record<JobView, { title: string; kicker: string; description
   all: {
     title: 'All Jobs',
     kicker: 'Completed work',
-    description: 'A shared history of completed jobs. Other users’ work is limited to its operational summary.',
+    description: 'A public history of completed jobs, showing their type, status, and processing stage.',
     empty: 'No completed jobs have been recorded yet.',
   },
   active: {
@@ -92,12 +92,12 @@ function JobsContent() {
     if (!response.ok) throw new Error('Unable to load jobs');
     return response.json();
   }, [apiFetch]);
-  const { data, error } = useSWR<JobSummary[]>(session ? `/api/jobs?view=${view}` : null, fetcher, {
+  const { data, error } = useSWR<JobSummary[]>(!isPending && (session || view !== 'mine') ? [`/api/jobs?view=${view}`, session?.user.id ?? 'public'] : null, ([url]: [string, string]) => fetcher(url), {
     refreshInterval: view === 'active' ? 2000 : 4000,
   });
 
   if (isPending) return <main className="mx-auto max-w-6xl px-5 py-16 text-zinc-400">Loading…</main>;
-  if (!session) return <SignedOutPanel
+  if (!session && view === 'mine') return <SignedOutPanel
     title={details.title}
     label="Job queue"
     heading={`Sign in to view ${view === 'mine' ? 'your jobs' : view === 'all' ? 'completed jobs' : 'the job queue'}`}
@@ -112,12 +112,12 @@ function JobsContent() {
       <header>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-2xl font-semibold">{details.title}</h1>
-          <Link href="/projects/new" className="button-primary px-4 py-2 text-sm">New job</Link>
+          <Link href={session ? '/projects/new' : '/sign-in'} className="button-primary px-4 py-2 text-sm">{session ? 'New job' : 'Sign in to submit'}</Link>
         </div>
         <p className="mt-2 text-sm text-zinc-400">{details.description}</p>
         <nav className="view-tabs mt-6" aria-label="Job views">
           <Link href="/jobs?view=active" aria-current={view === 'active' ? 'page' : undefined}>Queue</Link>
-          <Link href="/jobs?view=mine" aria-current={view === 'mine' ? 'page' : undefined}>My history</Link>
+          {session && <Link href="/jobs?view=mine" aria-current={view === 'mine' ? 'page' : undefined}>My history</Link>}
           <Link href="/jobs?view=all" aria-current={view === 'all' ? 'page' : undefined}>All completed</Link>
         </nav>
       </header>
@@ -143,7 +143,7 @@ function JobsContent() {
               );
             })}
           </ol>
-          <p className="mt-3 text-xs text-zinc-500">Queued counts show where work is waiting. Open one of your jobs to inspect its stage durations.</p>
+          <p className="mt-3 text-xs text-zinc-500">Queued counts show where work is waiting.{session && ' Open one of your jobs to inspect its stage durations.'}</p>
         </section>
       )}
 

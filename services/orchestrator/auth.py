@@ -86,3 +86,10 @@ async def get_current_user(request: Request) -> Dict[str, Any]:
         display_name=name,
         image_url=image,
     )
+
+
+async def get_optional_user(request: Request) -> Dict[str, Any] | None:
+    """Allow anonymous reads, but validate any supplied identity assertion."""
+    if INTERNAL_AUTH_HEADER not in request.headers:
+        return None
+    return await get_current_user(request)

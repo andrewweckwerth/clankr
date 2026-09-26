@@ -18,13 +18,14 @@ export default function HomePage() {
         <p className="mt-2 max-w-3xl text-sm text-zinc-400">Clankr is a project for detecting AI-generated lyrics from audio. Run a recording through four stages, then inspect progress, queue activity, and results.</p>
         <div className="project-links mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <span className="text-zinc-400">Built by Andrew Weckwerth</span>
+          <a href="https://www.linkedin.com/in/andrew-weckwerth/" target="_blank" rel="noreferrer">LinkedIn ↗</a>
           <a href="mailto:andrew.weckwerth@outlook.com">andrew.weckwerth@outlook.com</a>
           <a href="https://github.com/andrewweckwerth/clankr#readme" target="_blank" rel="noreferrer">Read the README on GitHub ↗</a>
         </div>
       </header>
       <PipelineOverview />
       <section className="mt-6 flex flex-wrap items-center justify-between gap-5 border-t border-white/10 pt-6">
-        <p className="text-sm text-zinc-400">{session ? 'Open the pipeline to submit a job and inspect its progress.' : 'Sign in to submit a job and inspect the pipeline.'}</p>
+        <p className="text-sm text-zinc-400">{session ? 'Open the pipeline to submit a job and inspect its progress.' : 'Browse the public song catalog and job queue. Sign in to submit your own audio.'}</p>
         <div className="flex gap-3">
           {session ? (
             <Link href="/projects/new" className="button-primary px-4 py-2 text-sm">Open pipeline</Link>

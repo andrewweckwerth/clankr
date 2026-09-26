@@ -2,29 +2,49 @@
 
 Clankr is a Next.js frontend backed by a FastAPI orchestrator, PostgreSQL, Redis Streams, MinIO, specialist workers, and Ollama.
 
-```text
-Browser
-        |
-Next.js frontend (:3000) ---- Better Auth (PostgreSQL auth_* tables)
-        |
-FastAPI orchestrator (:8000) ---- PostgreSQL (:5432)
-        |                          jobs, songs, job_steps
-        +---- Redis (:6379) -------- stage queues and result events
-        +---- MinIO (:9000) -------- raw audio and derived objects
-        |
-        +---- Acousti / Demucs / Whisper / Classifier workers
-                                      |
-                                      +---- Ollama (:11434)
+```mermaid
+flowchart TB
+    Browser["Browser"] -->|HTTPS| Frontend["Next.js frontend and Better Auth"]
+    Frontend -->|HTTP API requests| API["FastAPI orchestrator"]
+    Frontend -->|Accounts and sessions| DB[("PostgreSQL")]
+    API <-->|Jobs, songs, and stage state| DB
+    API <-->|Stage tasks, result events, and fingerprint cache| Redis[("Redis Streams and cache")]
+    API <-->|Uploads and artifact downloads| Storage[("MinIO: raw / preprocessed / stems")]
+
+    subgraph Workers["Independent FastAPI services with Redis consumers"]
+        Acousti["Acousti: FFmpeg and Chromaprint"]
+        Demucs["Demucs: vocal separation"]
+        Whisper["Whisper: transcription"]
+        Classifier["Classifier: lyric assessment"]
+    end
+
+    Redis <--> Acousti
+    Redis <--> Demucs
+    Redis <--> Whisper
+    Redis <--> Classifier
+    Acousti <--> Storage
+    Demucs <--> Storage
+    Storage --> Whisper
+    Acousti -->AcoustID["External AcoustID API"]
+    Classifier -->Ollama["Ollama"]
 ```
+
+Worker connections to Redis carry tasks and result events. Audio-processing
+workers read and write MinIO objects directly; audio bytes do not pass through
+Redis.
 
 In production, Traefik is the only public edge service. It terminates HTTPS and routes the configured hostname to the frontend. Specialist services, PostgreSQL, Redis, MinIO, the orchestrator, and Ollama remain on internal Docker networks.
 
 Authentication stays in Next.js. Better Auth sets the browser session cookie
 and handles Google OAuth plus email/password sign-in. Requests to the
-application API go through Next.js, which validates the session and signs a
+application API go through Next.js. Catalog reads, song details and vocal-stem
+downloads, and shared queue/completed-job summaries allow anonymous visitors.
+For signed-in requests, Next.js validates the session and signs a
 short-lived internal identity assertion for the orchestrator. The orchestrator
 verifies that assertion before mapping the Better Auth user ID to the local
-numeric application user.
+numeric application user. The proxy strips client-supplied identity assertions.
+Submissions, personal history, usage, library changes, and individual job
+details/actions still require authentication.
 
 ## Request flow
 
@@ -61,16 +81,18 @@ Whisper accept audio, while the classifier accepts text.
 ## Product surfaces
 
 - **Full Pipeline** creates a full job. Cache misses become canonical Songs only
-  after every stage succeeds.
+  after every stage succeeds. All completed Songs join the public catalog;
+  the upload form explains that transcripts, classifications, and vocal stems
+  will be public before submission.
 - **Tools** creates one-stage standalone jobs. These results remain Jobs rather
   than becoming new Songs.
 - **My history** lists a user's completed, failed, and cancelled work. Active
   work appears only in Job Queue. Failed jobs can be rerun as new jobs using
   their original input.
-- **All completed** is an authenticated history of completed jobs. It exposes only
-  operational summary fields for jobs owned by other users: job ID, type,
+- **All completed** is a public history of completed jobs. Anonymous visitors
+  and users viewing someone else's job see only operational summary fields: job ID, type,
   status, stage, and timestamps. Job details and actions remain owner-only.
-- **Jobs** opens the live **Queue** by default. The queue is the live set of all
+- **Jobs** opens the public live **Queue** by default. The queue is the live set of all
   jobs with `queued` or `processing` status, ordered to show work currently
   executing before work waiting to run.
   A stage summary shows queued and running counts for the loaded jobs (the API
@@ -78,9 +100,11 @@ Whisper accept audio, while the classifier accepts text.
   utilization or a definitive bottleneck diagnosis. Owner-only job details show
   elapsed processing time from the existing step start and completion timestamps.
   Queue, personal history, and shared completed history are tabs on this page.
-- **Songs** contains the global canonical catalog and each user's library
-  relationship. Removing a Song from a library does not delete the canonical
-  cache entry.
+- **Songs** opens the public global catalog by default. Existing and future
+  completed Songs, including metadata, transcripts, classifications, and vocal-stem
+  downloads, can be browsed without an account. Signed-in users can also open
+  **My songs** to manage their library. Removing a Song from a library does not
+  delete the public catalog entry.
 
 ## Service boundaries
 

@@ -14,8 +14,16 @@ type RouteContext = {
 
 async function proxyToOrchestrator(request: NextRequest, context: RouteContext) {
   const startedAt = Date.now();
+  const { path } = await context.params;
+  const route = path.join("/");
+  const views = request.nextUrl.searchParams.getAll("view");
+  const publicRead = request.method === "GET" && (
+    route === "songs"
+    || /^songs\/\d+(\/artifact)?$/.test(route)
+    || (route === "jobs" && views.length === 1 && ["active", "all"].includes(views[0]))
+  );
   const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) {
+  if (!session && !publicRead) {
     logEvent("frontend.proxy.rejected", {
       method: request.method,
       path: request.nextUrl.pathname,
@@ -25,7 +33,6 @@ async function proxyToOrchestrator(request: NextRequest, context: RouteContext) 
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  const { path } = await context.params;
   const firstPath = path[0];
   if (!firstPath || !allowedPaths.has(firstPath)) {
     logEvent("frontend.proxy.rejected", {
@@ -44,7 +51,8 @@ async function proxyToOrchestrator(request: NextRequest, context: RouteContext) 
   headers.delete("cookie");
   headers.delete("host");
   headers.delete("content-length");
-  headers.set(INTERNAL_AUTH_HEADER, createInternalAuthHeader(session.user));
+  headers.delete(INTERNAL_AUTH_HEADER);
+  if (session) headers.set(INTERNAL_AUTH_HEADER, createInternalAuthHeader(session.user));
 
   const init: RequestInit & { duplex?: "half" } = {
     method: request.method,
@@ -59,6 +67,7 @@ async function proxyToOrchestrator(request: NextRequest, context: RouteContext) 
     const responseHeaders = new Headers(response.headers);
     responseHeaders.delete("content-encoding");
     responseHeaders.delete("content-length");
+    responseHeaders.set("cache-control", "private, no-store");
     logEvent("frontend.proxy.completed", {
       method: request.method,
       path: request.nextUrl.pathname,
