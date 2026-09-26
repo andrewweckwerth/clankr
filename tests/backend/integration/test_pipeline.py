@@ -67,7 +67,6 @@ async def test_audio_pipeline_sequences_stages_and_creates_one_song(client, pool
     result = await client.get(f"/api/songs/{job['song_id']}")
     assert result.status_code == 200 and result.json()["classification"] == "Human"
 
-
 async def test_text_job_completes_without_creating_song(client, pool, redis, orchestrator, monkeypatch):
     job_id = await submit(client, monkeypatch, orchestrator, audio=False)
     task = json.loads((await redis.xrange(redis_queue.STREAMS["classify"]))[0][1]["payload"])

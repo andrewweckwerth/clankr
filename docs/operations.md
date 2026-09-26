@@ -25,15 +25,23 @@ back up production MinIO data before deploying it against existing volumes.
 
 ## Deployment flow
 
-The GitHub Actions workflow runs on pushes to `main` or manually:
+Pull requests targeting `dev` or `main` run image builds and the reusable
+[test suite](testing.md) in parallel. Frontend
+lint and build validation run in the frontend test job.
+
+The production GitHub Actions workflow runs on pushes to `main` or manually:
 
 1. Build six images: frontend, Demucs, Whisper, classifier, Acousti, and orchestrator.
 2. Push the commit-SHA tag and `latest` to GHCR.
-3. SSH to the VM using GitHub secrets.
+3. Wait for all backend and frontend tests and image builds to pass, then SSH to the VM using GitHub secrets.
 4. Pull the commit-SHA images with the production Compose file.
 5. Restart the production project and prune unused Docker images.
 
-The deployment is image-based, but the VM also pulls the repository checkout before Compose runs. Keep the checkout and production environment file in the paths expected by the workflow, or update the workflow and this document together.
+Tests run alongside builds and pushes. Failure blocks deployment; it does not
+prevent publishing the commit-SHA or existing `latest` image tags. The deployment
+is image-based, but the VM also pulls the repository checkout before Compose
+runs. Keep the checkout and production environment file in the paths expected by
+the workflow, or update the workflow and this document together.
 
 ## Secrets
 

@@ -1,0 +1,13 @@
+{
+  "run_id": "demucs-20260925T004046Z-5x-10jobs",
+  "compose_project": "clankr-bench-demucs-20260925t004046z-5x-10jobs",
+  "scenario": "demucs",
+  "submitted_jobs": 10,
+  "demucs_replicas": 5,
+  "audio_path": "/opt/clankr/app/benchmarks/fixtures/U-Don't No.wav",
+  "git_sha": "b5d73aa46e9dcb29da0752b4fb62ab702971d783",
+  "started_at": "2026-09-25T00:40:46.905908+00:00",
+  "host": "Linux-6.8.0-90-generic-x86_64-with-glibc2.39",
+  "demucs_image": "ghcr.io/andrewweckwerth/clankr/demucs:latest",
+  "demucs_image_id": "sha256:82de09f9426f2ce62e07f9cf92ff21dc5985698ac90900803410994185f64134"
+}

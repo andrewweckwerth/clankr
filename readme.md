@@ -90,6 +90,7 @@ See [Local development](docs/development.md) for prerequisites, environment conf
 
 
 ## Documentation
+This is an active engineering project. The current implementation uses Redis Streams for stage queues, includes [automated backend and frontend tests](docs/testing.md), and treats the classifier as a probabilistic signal rather than proof of authorship. Those tradeoffs are documented alongside the architecture.
 
 - [System architecture](docs/architecture.md) — services, request flow, processing stages, and storage.
 - [Local development](docs/development.md) — prerequisites, configuration, startup, and verification.

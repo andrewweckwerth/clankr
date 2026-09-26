@@ -1,0 +1,59 @@
+{
+  "run_id": "demucs-20260925T004046Z-5x-10jobs",
+  "host": "Linux-6.8.0-90-generic-x86_64-with-glibc2.39",
+  "demucs_replicas": 5,
+  "samples_started_at": "2026-09-25T00:41:06.988011+00:00",
+  "samples_ended_at": "2026-09-25T01:06:34.620115+00:00",
+  "duration_seconds": 1527.6,
+  "container_samples": 2068,
+  "service_summary": {
+    "benchmark-runner": {
+      "samples": 205,
+      "cpu_average_percent": 0.0,
+      "cpu_p95_percent": 0.1,
+      "cpu_max_percent": 1.4,
+      "memory_average_mib": 26.9,
+      "memory_max_mib": 29.7
+    },
+    "db": {
+      "samples": 207,
+      "cpu_average_percent": 0.2,
+      "cpu_p95_percent": 0.9,
+      "cpu_max_percent": 14.3,
+      "memory_average_mib": 38.1,
+      "memory_max_mib": 57.2
+    },
+    "demucs": {
+      "samples": 207,
+      "cpu_average_percent": 518.9,
+      "cpu_p95_percent": 564.0,
+      "cpu_max_percent": 587.8,
+      "memory_average_mib": 9035.6,
+      "memory_max_mib": 9877.5
+    },
+    "minio": {
+      "samples": 207,
+      "cpu_average_percent": 3.0,
+      "cpu_p95_percent": 11.6,
+      "cpu_max_percent": 106.7,
+      "memory_average_mib": 114.3,
+      "memory_max_mib": 253.4
+    },
+    "orchestrator": {
+      "samples": 207,
+      "cpu_average_percent": 0.4,
+      "cpu_p95_percent": 0.5,
+      "cpu_max_percent": 7.5,
+      "memory_average_mib": 44.0,
+      "memory_max_mib": 45.0
+    },
+    "redis": {
+      "samples": 207,
+      "cpu_average_percent": 2.1,
+      "cpu_p95_percent": 6.6,
+      "cpu_max_percent": 9.6,
+      "memory_average_mib": 3.9,
+      "memory_max_mib": 8.0
+    }
+  }
+}

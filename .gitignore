@@ -46,6 +46,8 @@ venv
 *.wav
 
 __pycache__
+.pytest_cache/
+/test-results/
 
 ./models/*
 ./models
