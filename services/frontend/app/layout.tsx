@@ -3,7 +3,7 @@ import "./globals.css";
 import SiteHeader from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
-  title: "Clankr — Audio Pipeline",
+  title: "Clankr",
   description: "Run and inspect the audio processing pipeline, from identification to lyric classification.",
   icons: { icon: '/favicon.ico', apple: '/apple-touch-icon.png' },
 };

@@ -87,7 +87,7 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .stage-description { margin-top: 0.35rem; color: var(--muted); font-size: 0.8rem; }
 .pipeline-stages > [data-status="processing"] { background: #202b3b; }
 .pipeline-stages > [data-status="failed"] { background: #362126; }
-.stage-status { display: inline-block; margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+.stage-status { display: inline-block; margin-top: 0.75rem; font-size: 0.875rem; line-height: 1.25rem; color: var(--muted); }
 [data-status="processing"] .stage-status { color: #a8caff; }
 [data-status="completed"] .stage-status { color: #86efac; }
 [data-status="failed"] .stage-status { color: #fda4af; }
