@@ -81,9 +81,10 @@ run, the script exports reports and removes the isolated containers and volumes.
 Look for `Benchmark complete` and verify the report files exist; a progress
 line alone does not mean report generation has finished.
 
-## 5. Compare with two workers — on the VM
+## 5. Compare worker counts — on the VM
 
-After the first run finishes, use the same audio, image tag, and job count:
+After the first run finishes, use the same audio, image tag, and job count while
+changing only `--demucs-replicas`:
 
 ```bash
 BENCHMARK_ENV_FILE=benchmarks/.env.benchmark \
@@ -93,6 +94,7 @@ BENCHMARK_ENV_FILE=benchmarks/.env.benchmark \
   --demucs-replicas 2
 ```
 
+Repeat with `--demucs-replicas 3`, `4`, and `5` when you want a worker sweep.
 Run comparisons sequentially so the benchmarks do not compete with each other.
 
 ## 6. Download results — from your Mac
@@ -133,7 +135,8 @@ open "$HOME/Downloads/clankr-benchmarks/results/RUN_ID/analysis.html"
 
 The HTML shows CPU and memory samples. Job timings and completion counts are
 in `report.md`, `summary.json`, and `jobs.csv`. Generating HTML cannot recover
-missing samples or missing final job reports.
+missing samples or missing final job reports. The first curated comparison is
+documented in [first-benchmark-results.md](first-benchmark-results.md).
 
 ## Disk usage and image cleanup — on the VM
 

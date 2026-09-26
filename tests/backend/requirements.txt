@@ -1,0 +1,7 @@
+-r ../../services/orchestrator/requirements.txt
+-r ../../services/classifier/requirements.txt
+-r ../../services/acousti/requirements.txt
+pytest>=8,<9
+pytest-asyncio>=1,<2
+pytest-socket>=0.7,<1
+pytest-timeout>=2,<3
