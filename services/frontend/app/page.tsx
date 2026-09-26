@@ -1,11 +1,20 @@
 'use client';
 
+import { Suspense } from 'react';
 import PipelineOverview from '@/components/PipelineOverview';
 import { authClient } from '@/lib/auth-client';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
 export default function HomePage() {
+  return (
+    <Suspense fallback={<main className="mx-auto max-w-7xl px-5 py-12 text-zinc-400">Loading pipeline…</main>}>
+      <HomePageContent />
+    </Suspense>
+  );
+}
+
+function HomePageContent() {
   const { data: session, isPending } = authClient.useSession();
   const searchParams = useSearchParams();
   const accountNotLinked = searchParams.get('error') === 'account_not_linked';
