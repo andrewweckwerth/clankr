@@ -9,10 +9,10 @@ application stack, model weights, GPU, API keys, or audio files.
 
 | Suite | What it checks | External dependencies |
 | --- | --- | --- |
-| Backend unit/API | Signed authentication, HTTP validation and quota responses, audio/text submissions, job access, health endpoints, classifier parsing/HTTP contract, Redis worker result/ack behavior for all four workers, storage cleanup and object keys | Mocked; network sockets disabled |
+| Backend unit/API | Signed authentication, public catalog/results/downloads and queue access, protected personal data and mutations, HTTP validation and quota responses, audio/text submissions, job access, health endpoints, classifier parsing/HTTP contract, Redis worker result/ack behavior for all four workers, storage cleanup and object keys | Mocked; network sockets disabled |
 | Backend integration | Full stage sequencing, duplicate completion events, text-only completion, failures/retries, fingerprint cache hits, concurrent quotas, owner-only jobs/shared queue redaction, Redis delivery/reclaim/ack | Disposable PostgreSQL 18 and Redis 7; storage and worker outputs mocked |
-| Frontend components | Required inputs, upload metadata, text submissions, navigation, pending/error/retry states, account controls, UTC timestamps | Mocked fetch and auth session |
-| Browser | Signed-out tool access; text submission → job progress → completed classification | Production Next.js server and Chromium; all application API calls mocked |
+| Frontend components/API proxy | Required inputs, public-catalog upload notice, text submissions, navigation, pending/error/retry states, account controls, UTC timestamps, anonymous route allowlist and identity-header stripping | Mocked fetch and auth session |
+| Browser | Public queue, completed history, catalog, song results and downloads; protected personal views; signed-out tool access; text submission → job progress → completed classification | Production Next.js server and Chromium; all application API calls mocked |
 
 The API tests use HTTPX's ASGI transport to exercise real FastAPI routing,
 form parsing, dependency resolution, and response serialization. They do not

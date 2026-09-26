@@ -24,7 +24,8 @@ canonical songs a user has submitted, including the first and most recent
 submission times and the number of submissions. This relationship survives
 job cleanup. A canonical `songs` row may be shared by many users because
 `fingerprint_hash` deduplicates recordings globally. The all-songs catalog reads
-directly from `songs`; the user-specific catalog joins through `user_songs`.
+directly from `songs` and is public, including existing completed records;
+the authenticated user-specific catalog joins through `user_songs`.
 
 `user_daily_usage` atomically tracks the number of processing submissions made
 by each user on a UTC calendar date. The current limit is ten analyses per day;
@@ -69,13 +70,15 @@ its artifacts independently of the failed job.
 
 `user_id` identifies the locally mapped authenticated user who submitted the
 request. Job detail, retry, delete, and artifact endpoints filter by this value
-rather than trusting a client-provided numeric ID. The authenticated All Jobs
+rather than trusting a client-provided numeric ID. The public All Jobs
 feed includes only completed work, while Job Queue includes only queued and
 processing work. My Jobs contains a user's terminal work (completed, failed,
-and cancelled). The shared feeds intentionally expose only each other user's
+and cancelled). For anonymous visitors, the shared feeds expose only operational
+summaries. Signed-in users also see their own job metadata, but only each other user's
 operational summary (ID, job type, status, stage, and timestamps); input-derived
 metadata, errors, results, artifacts, and detail views remain owner-only.
-Canonical Songs are visible in the authenticated global catalog, while library
+Canonical Songs, their transcripts, classifications, and vocal stems are publicly
+accessible in the global catalog, while library
 mutations are always scoped through `user_songs`.
 
 ## `job_steps`
@@ -111,9 +114,10 @@ The default MinIO bucket is `clankr-audio`.
 | `preprocessed/` | Acousti | WAV converted with FFmpeg |
 | `stems/` | Demucs | Vocal stem WAV used by Whisper |
 
-The database stores object keys rather than public URLs. Authorized download
-endpoints stream standalone Demucs and canonical Song artifacts through the
-authenticated application boundary.
+The database stores object keys rather than public URLs. Download endpoints
+stream artifacts through the application: completed canonical Song vocal stems
+are public, while standalone Demucs artifacts require the job owner's session.
+Raw uploads and incomplete Song artifacts are not public downloads.
 
 ## Completion and reuse
 

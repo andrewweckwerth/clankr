@@ -57,8 +57,17 @@ async def client(orchestrator, pool, redis, user, monkeypatch):
     monkeypatch.setattr(orchestrator.app.state, "db_pool", pool, raising=False)
     monkeypatch.setattr(orchestrator.app.state, "redis", redis, raising=False)
     monkeypatch.setitem(orchestrator.app.dependency_overrides, orchestrator.get_current_user, lambda: user)
+    monkeypatch.setitem(orchestrator.app.dependency_overrides, orchestrator.get_optional_user, lambda: user)
     # ASGITransport exercises real routing/validation without starting consumers.
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=orchestrator.app), base_url="http://test"
     ) as client:
         yield client
+
+
+@pytest.fixture
+async def guest_client(client, orchestrator, monkeypatch):
+    monkeypatch.setenv("INTERNAL_AUTH_SECRET", "test-only")
+    monkeypatch.delitem(orchestrator.app.dependency_overrides, orchestrator.get_current_user)
+    monkeypatch.delitem(orchestrator.app.dependency_overrides, orchestrator.get_optional_user)
+    yield client

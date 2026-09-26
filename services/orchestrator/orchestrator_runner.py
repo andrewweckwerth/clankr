@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from redis.asyncio import Redis
 
-from auth import get_current_user
+from auth import get_current_user, get_optional_user
 from db import (
     consume_daily_analysis,
     create_job,
@@ -298,7 +298,7 @@ async def get_usage(request: Request, user: dict = Depends(get_current_user)):
 
 
 @app.get("/api/songs")
-async def list_songs(request: Request, user: dict = Depends(get_current_user)):
+async def list_songs(request: Request):
     try:
         async with request.app.state.db_pool.acquire() as conn:
             rows = await conn.fetch(
@@ -338,7 +338,7 @@ async def list_my_songs(request: Request, user: dict = Depends(get_current_user)
 
 
 @app.get("/api/songs/{song_id}")
-async def get_song(request: Request, song_id: int, user: dict = Depends(get_current_user)):
+async def get_song(request: Request, song_id: int):
     try:
         async with request.app.state.db_pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -384,7 +384,6 @@ async def remove_song_from_library(
 async def download_song_artifact(
     request: Request,
     song_id: int,
-    user: dict = Depends(get_current_user),
 ):
     async with request.app.state.db_pool.acquire() as conn:
         song = await conn.fetchrow(
@@ -411,9 +410,11 @@ async def list_jobs(
     request: Request,
     limit: int = Query(100, ge=1, le=200),
     view: str = Query("mine", pattern="^(mine|all|active)$"),
-    user: dict = Depends(get_current_user),
+    user: Optional[dict] = Depends(get_optional_user),
 ):
     if view == "mine":
+        if user is None:
+            raise HTTPException(status_code=401, detail="Authentication required")
         jobs = await list_jobs_for_user(
             request.app.state.db_pool,
             user["id"],
@@ -422,7 +423,7 @@ async def list_jobs(
     else:
         jobs = await list_shared_jobs(
             request.app.state.db_pool,
-            user["id"],
+            user["id"] if user else None,
             view=view,
             limit=limit,
         )

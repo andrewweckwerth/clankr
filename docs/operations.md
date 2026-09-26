@@ -6,6 +6,13 @@
 
 The production VM needs Docker Compose v2, DNS pointing the application host at the VM, and private environment values supplied outside the repository. PostgreSQL, Redis, MinIO, Ollama, and worker health APIs should not be internet-facing. Redis state lives in a named Docker volume, while PostgreSQL remains authoritative for jobs.
 
+Set `APP_HOST` to the public hostname in the VM environment file. Production
+Compose derives `BETTER_AUTH_URL` as `https://${APP_HOST}` for the frontend, so
+Better Auth uses the public HTTPS origin for trusted requests, cookies, and
+Google OAuth callbacks. Register
+`https://<APP_HOST>/api/auth/callback/google` as an authorized redirect URI in
+Google Cloud.
+
 The MinIO server and initialization client both use
 `ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z`.
 This [third-party build](https://github.com/coollabsio/minio) compiles official

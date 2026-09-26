@@ -1,7 +1,6 @@
 'use client';
 
 import { useApiFetch } from '@/lib/api';
-import { authClient } from '@/lib/auth-client';
 import { WorkspaceFrame } from '@/components/WorkspaceChrome';
 import { useParams } from 'next/navigation';
 import { useCallback } from 'react';
@@ -21,17 +20,15 @@ type Song = {
 
 export default function SongDetailPage() {
   const params = useParams<{ id: string }>();
-  const { data: session, isPending } = authClient.useSession();
   const apiFetch = useApiFetch();
   const fetcher = useCallback(async (url: string) => {
     const response = await apiFetch(url);
     if (!response.ok) throw new Error('Unable to load song');
     return response.json();
   }, [apiFetch]);
-  const { data: song, error } = useSWR<Song>(session ? `/api/songs/${params.id}` : null, fetcher);
+  const { data: song, error } = useSWR<Song>(`/api/songs/${params.id}`, fetcher);
 
-  if (isPending || (!song && !error)) return <main className="mx-auto max-w-5xl px-5 py-16 text-zinc-400">Loading song…</main>;
-  if (!session) return <main className="mx-auto max-w-xl px-5 py-24 text-center text-white">Sign in to view this Song.</main>;
+  if (!song && !error) return <main className="mx-auto max-w-5xl px-5 py-16 text-zinc-400">Loading song…</main>;
   if (error || !song) return <main className="mx-auto max-w-xl px-5 py-24 text-center text-red-200">This Song could not be found.</main>;
 
   const accuracy = song.accuracy == null ? null : Number(song.accuracy);

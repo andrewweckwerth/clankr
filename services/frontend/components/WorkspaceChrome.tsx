@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { authClient } from '@/lib/auth-client';
 import { useEffect, useState, type ReactNode } from 'react';
 
 type WorkspacePanelProps = {
@@ -68,11 +69,12 @@ function DailyUsageMeter() {
 }
 
 export function WorkspaceFrame({ crumb, children }: { crumb: ReactNode; children: ReactNode }) {
+  const { data: session } = authClient.useSession();
   return (
     <main className="workspace mx-auto w-full px-5 py-6 sm:px-8 sm:py-8">
       <div className="workspace-heading">
         <div className="breadcrumb"><Link href="/">clankr</Link> / {crumb}</div>
-        <DailyUsageMeter />
+        {session && <DailyUsageMeter key={session.user.id} />}
       </div>
       <div className="workspace-content">{children}</div>
     </main>

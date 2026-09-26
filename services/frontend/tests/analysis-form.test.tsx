@@ -39,6 +39,7 @@ test('full submission sends the upload and optional metadata', async () => {
   fetcher.mockResolvedValue(Response.json({ job_id: 7 }));
   const user = userEvent.setup();
   render(<AnalysisForm jobType="full" />);
+  expect(screen.getByText(/Every completed full-pipeline song joins the public catalog/)).toBeVisible();
   const file = new File(['synthetic'], 'input.wav', { type: 'audio/wav' });
   await user.upload(screen.getByLabelText(/Audio file/), file);
   await user.type(screen.getByRole('textbox', { name: /Title/ }), '  Song  ');

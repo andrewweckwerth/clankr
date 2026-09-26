@@ -59,6 +59,13 @@ async def test_audio_pipeline_sequences_stages_and_creates_one_song(client, pool
         assert await conn.fetchval("SELECT count(*) FROM songs WHERE pipeline_complete") == 1
         assert await conn.fetchval("SELECT submission_count FROM user_songs WHERE user_id=$1", user["id"]) == 1
 
+    # Completed pipeline output is immediately readable without an account.
+    monkeypatch.delitem(orchestrator.app.dependency_overrides, orchestrator.get_current_user)
+    monkeypatch.delitem(orchestrator.app.dependency_overrides, orchestrator.get_optional_user)
+    catalog = (await client.get("/api/songs")).json()
+    assert len(catalog) == 1 and catalog[0]["lyrics"] == "transcribed lyrics"
+    result = await client.get(f"/api/songs/{job['song_id']}")
+    assert result.status_code == 200 and result.json()["classification"] == "Human"
 
 async def test_text_job_completes_without_creating_song(client, pool, redis, orchestrator, monkeypatch):
     job_id = await submit(client, monkeypatch, orchestrator, audio=False)
@@ -135,6 +142,29 @@ async def test_private_job_and_shared_queue_redaction(client, pool, user, orches
     shared = next(job for job in response.json() if job["id"] == job_id)
     assert shared["is_owner"] is False and shared["title"] is None
     assert "Private lyrics" not in response.text and "Private title" not in response.text
+
+
+async def test_guest_queue_and_completed_feed_hide_personal_data(guest_client, pool, user):
+    async with pool.acquire() as conn:
+        job_id = await db.create_job(conn, user_id=user["id"], job_type="classifier", stages=("classify",), title="Private title", lyrics="Private lyrics")
+    for view, status in [("active", "queued"), ("all", "completed")]:
+        async with pool.acquire() as conn:
+            await conn.execute("UPDATE jobs SET status=$1 WHERE id=$2", status, job_id)
+        response = await guest_client.get(f"/api/jobs?view={view}")
+        assert response.status_code == 200
+        job = response.json()[0]
+        assert job["id"] == job_id and job["is_owner"] is False
+        assert job["title"] is None and job["song_id"] is None
+        assert "Private title" not in response.text and "Private lyrics" not in response.text
+        assert "user_id" not in job and "email" not in job
+
+
+async def test_public_catalog_excludes_incomplete_songs(guest_client, pool):
+    async with pool.acquire() as conn:
+        song_id = await conn.fetchval("INSERT INTO songs (title, file_path) VALUES ('Partial', 'raw/private.wav') RETURNING id")
+    assert (await guest_client.get("/api/songs")).json() == []
+    assert (await guest_client.get(f"/api/songs/{song_id}")).status_code == 404
+    assert (await guest_client.get(f"/api/songs/{song_id}/artifact")).status_code == 404
 
 
 async def test_redis_consumer_group_delivery_reclaim_and_ack(redis, monkeypatch):
